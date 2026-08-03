@@ -1,0 +1,424 @@
+#include <Arduino.h>
+#include <WiFi.h>
+#include <GyverDBFile.h>     // База данных для автосохранения
+#include <SettingsGyverWS.h> // Конструктор веб-интерфейса
+#include <LittleFS.h>
+const char *ap_ssid = "controller";
+const char *ap_pass = "11111111";
+
+GyverDBFile db(&LittleFS, "/data.db");
+SettingsGyverWS sett("Контроллер полива", &db);
+
+// Назначение пинов для трех реле (зон)
+const uint8_t RELAY_PINS[4] = {32, 33, 25, 26};
+bool RELAY_STATE[4] = {0};
+// Переменные логики полива
+bool already_watered = false;
+// Переменные автомата состояний (очереди)
+bool watering_active = false;
+int current_zone = -1;
+uint32_t zone_start_millis = 0;
+int zone_durations[3] = {0, 0, 0};
+String status;
+
+enum kk : size_t
+{
+    time_str,
+    tm_hour,
+    tm_min,
+    status_str,
+    button,
+    relay_1,
+    relay_2,
+    relay_3,
+    relay_4,
+    // Дни недели
+    d_1,
+    d_2,
+    d_3,
+    d_4,
+    d_5,
+    d_6,
+    d_7,
+    // Длительность работы зон (минуты)
+    dur_1,
+    dur_2,
+    dur_3,
+    // Выключатели зон (по умолчанию все зоны активны)
+    z1_on,
+    z2_on,
+    z3_on,
+    z4_on,
+};
+
+const kk RELAY_KEYS[4] = {kk::relay_1, kk::relay_2, kk::relay_3, kk::relay_4};
+
+// Функция принудительного выключения всех реле
+void turnOffAllRelays()
+{
+    for (int i = 0; i < 4; i++)
+    {
+        // digitalWrite(RELAY_PINS[i], LOW);
+        RELAY_STATE[i] = false;
+        sett.updater().update(RELAY_KEYS[i], RELAY_STATE[i]);
+    }
+}
+
+// Функция перехода к следующей зоне в очереди
+void goToNextZone()
+{
+    turnOffAllRelays(); // Отключаем активное реле
+
+    current_zone++; // Переходим к следующему реле
+
+    // Если прошли все 3 зоны — завершаем сессию
+    if (current_zone >= 3)
+    {
+        watering_active = false;
+        current_zone = -1;
+        // status = "Ожидание расписания";
+        Serial.println(">>> Сессия полива полностью завершена <<<");
+        return;
+    }
+
+    // Если для зоны установлено 0 минут — пропускаем её и идем дальше
+    if (zone_durations[current_zone] <= 0)
+    {
+        Serial.print("Зона ");
+        Serial.print(current_zone + 1);
+        Serial.println(" пропущена (0 мин).");
+        goToNextZone();
+        return;
+    }
+
+    // Включаем реле текущей зоны
+    // digitalWrite(RELAY_PINS[current_zone], HIGH);
+    // digitalWrite(RELAY_PINS[3], HIGH);
+
+    RELAY_STATE[current_zone] = true;
+    RELAY_STATE[3] = true;
+
+    // Выбираем соответствующий ключ из перечисления
+    kk relay_keys[] = {kk::relay_1, kk::relay_2, kk::relay_3};
+    sett.updater().update(relay_keys[current_zone], RELAY_STATE[current_zone]);
+    // status = "ПОЛИВ: Зона " + String(current_zone + 1);
+    zone_start_millis = millis();
+
+    Serial.print(">>> Включена Зона ");
+    Serial.print(current_zone + 1);
+    Serial.print(" на ");
+    Serial.print(zone_durations[current_zone]);
+    Serial.println(" мин.");
+}
+
+// Функция запуска последовательного полива с учетом чекбоксов
+void startWateringSequence()
+{
+    // Проверяем каждую зону: если тумблер включен, берем минуты из БД, если выключен — пишем 0 (пропуск)
+    zone_durations[0] = db[kk::z1_on].toBool() ? db[kk::dur_1].toInt() : 0;
+    zone_durations[1] = db[kk::z2_on].toBool() ? db[kk::dur_2].toInt() : 0;
+    zone_durations[2] = db[kk::z3_on].toBool() ? db[kk::dur_3].toInt() : 0;
+
+    watering_active = true;
+    current_zone = -1;
+    goToNextZone(); // Запускаем цепочку
+}
+void build(sets::Builder &b)
+{
+    b.Label(kk::time_str, "Текущее время", sett.rtc.toString());
+
+    if (b.beginRow("Состояние реле", sets::DivType::Block))
+    {
+        b.LED(kk::relay_1, "реле 1", RELAY_STATE[0]);
+        b.LED(kk::relay_2, "реле 2", RELAY_STATE[1]);
+        b.LED(kk::relay_3, "реле 3", RELAY_STATE[2]);
+        b.endRow();
+    }
+
+    if (!watering_active)
+    {
+        if (db[kk::z1_on].toBool() || db[kk::z2_on].toBool() || db[kk::z3_on].toBool())
+            status = "Ожидание расписания";
+        else
+            status = "Автополив выключен";
+        b.Label(kk::status_str, "Статус", status);
+    }
+    else
+    {
+        status = "ПОЛИВ: Зона " + String(current_zone + 1);
+        b.Label(kk::status_str, "Статус", status);
+    }
+
+    // БЛОК РУЧНОГО ЗАПУСКА ВСЕЙ ЦЕПОЧКИ
+    if (!watering_active)
+    {
+        if (b.Button(kk::button, "Запустить полив сейчас", sets::Colors::Green))
+        {
+            startWateringSequence();
+        }
+    }
+    else
+    {
+        if (b.Button(kk::button, "ОСТАНОВИТЬ ВСЁ", sets::Colors::Red))
+        {
+            turnOffAllRelays();
+            watering_active = false;
+            current_zone = -1;
+            Serial.println("Принудительная остановка всей очереди");
+            status = "Ожидание расписания";
+        }
+    }
+
+    // НАСТРОЙКИ ЗОН (Выключатель + Ползунок рядом)
+    if (b.beginGroup("Настройка Зон Полива"))
+    {
+        if (b.beginRow("🌱 Зона 1", sets::DivType::Default))
+        {
+            b.Switch(kk::z1_on, "Поливать");
+            b.Spinner(kk::dur_1, "(минут)", 0, 60, 1);
+            b.endRow();
+        }
+        if (b.beginRow("🌱 Зона 2", sets::DivType::Block))
+        {
+            b.Switch(kk::z2_on, "Поливать");
+            b.Spinner(kk::dur_2, "(минут)", 0, 60, 1);
+            b.endRow();
+        }
+        if (b.beginRow("🌱 Зона 3", sets::DivType::Block))
+        {
+            b.Switch(kk::z3_on, "Поливать");
+            b.Spinner(kk::dur_3, "(минут)", 0, 60, 1);
+            b.endRow();
+        }
+        b.endGroup();
+    }
+
+    // if (b.beginMenu("Настройка времени зон"))
+    // {
+    //     b.Slider(kk::dur_1, "Время Зоны 1 (мин)", 0, 60, 1);
+    //     b.Slider(kk::dur_2, "Время Зоны 2 (мин)", 0, 60, 1);
+    //     b.Slider(kk::dur_3, "Время Зоны 3 (мин)", 0, 60, 1);
+    //     b.endMenu();
+    // }
+    // а это кнопка на вложенное меню. Далее нужно описать его содержимое
+    if (b.beginMenu("⏰ Расписание полива"))
+    {
+        if (b.beginGroup("Дни полива"))
+        {
+            b.Switch(kk::d_1, "Понедельник");
+            b.Switch(kk::d_2, "Вторник");
+            b.Switch(kk::d_3, "Среда");
+            b.Switch(kk::d_4, "Четверг");
+            b.Switch(kk::d_5, "Пятница");
+            b.Switch(kk::d_6, "Суббота");
+            b.Switch(kk::d_7, "Воскресенье");
+            b.endGroup();
+        }
+
+        if (b.beginGroup("Время старта полива"))
+        {
+            b.Slider(kk::tm_hour, "Час старта", 0, 23, 1);
+            b.Slider(kk::tm_min, "Минута старта", 0, 59, 1);
+            b.endGroup();
+        }
+        if (b.beginMenu("Ручное управление"))
+        {
+            if (b.enterMenu())
+            {
+                turnOffAllRelays();
+                watering_active = false;
+                current_zone = -1;
+                Serial.println("Принудительная остановка всей очереди");
+                status = "Ожидание расписания";
+            }
+
+            if (b.Switch(100, "Реле зоны 1", &RELAY_STATE[0]))
+            {
+                // digitalWrite(RELAY_PINS[0], RELAY_STATE[0]);
+                Serial.printf("Клик по Switch1! Новый статус: %d\n", RELAY_STATE[0]);
+            }
+            if (b.Switch(101, "Реле зоны 2", &RELAY_STATE[1]))
+            {
+                // digitalWrite(RELAY_PINS[1], RELAY_STATE[1]);
+                Serial.printf("Клик по Switch2! Новый статус: %d\n", RELAY_STATE[1]);
+            }
+            if (b.Switch(102, "Реле зоны 3", &RELAY_STATE[2]))
+            {
+                // digitalWrite(RELAY_PINS[2], RELAY_STATE[2]);
+                Serial.printf("Клик по Switch3! Новый статус: %d\n", RELAY_STATE[2]);
+            }
+            if (b.Switch(103, "Реле 24v", &RELAY_STATE[3]))
+            {
+                // digitalWrite(RELAY_PINS[3], RELAY_STATE[3]);
+                Serial.printf("Клик по Switch4! Новый статус: %d\n", RELAY_STATE[3]);
+            }
+            b.Paragraph("  ВНИМАНИЕ❗", "При входе в это меню, выполняемая в данный момент программа останавливается!");
+
+            b.endMenu();
+        }
+        b.endMenu(); // не забываем завершить меню
+    }
+}
+
+void setup()
+{
+    Serial.begin(115200);
+
+    for (int i = 0; i < 4; i++)
+    {
+        // pinMode(RELAY_PINS[i], OUTPUT);
+        // digitalWrite(RELAY_PINS[i], LOW);
+        RELAY_STATE[i] = false;
+    }
+
+    if (!LittleFS.begin(true))
+        Serial.println("LittleFS error");
+    // настройки вебморды
+    sett.config.requestTout = 3000;
+    sett.config.sliderTout = 500;
+    sett.config.updateTout = 2500;
+    sett.config.theme = sets::Colors::Green;
+
+    // Инициализация базы данных
+    db.begin();
+    // Настройки расписания
+    db.init(kk::tm_hour, 8);
+    db.init(kk::tm_min, 30);
+
+    // Дни недели
+    db.init(kk::d_1, true);
+    db.init(kk::d_2, true);
+    db.init(kk::d_3, true);
+    db.init(kk::d_4, true);
+    db.init(kk::d_5, true);
+    db.init(kk::d_6, true);
+    db.init(kk::d_7, true);
+
+    // Длительность работы зон (минуты)
+    db.init(kk::dur_1, 10);
+    db.init(kk::dur_2, 15);
+    db.init(kk::dur_3, 5);
+
+    // Выключатели зон (по умолчанию все зоны активны)
+    db.init(kk::z1_on, true);
+    db.init(kk::z2_on, true);
+    db.init(kk::z3_on, true);
+
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(ap_ssid, ap_pass);
+
+    sett.begin();
+    setStampZone(3);
+    sett.onBuild(build);
+    // установить версию прошивки для отображения в меню
+    sett.setVersion("1.0");
+    // установить инфо о проекте (отображается на вкладке настроек и файлов)
+    sett.setProjectInfo("Контроллер полива на дачу", "http://111.111.111");
+}
+
+void checkSchedule()
+{
+    int cur_hour = sett.rtc.hour();
+    int cur_min = sett.rtc.minute();
+    int cur_day = sett.rtc.weekDay();
+    String day_key = "d_" + String(cur_day);
+    bool day_allowed = db[day_key].toBool();
+
+    int start_hour = db[kk::tm_hour].toInt();
+    int start_min = db[kk::tm_min].toInt();
+
+    if (day_allowed && cur_hour == start_hour && cur_min == start_min)
+    {
+        if (!already_watered)
+        {
+            Serial.println("Время расписания пришло. Запуск поочередного полива.");
+            already_watered = true;
+
+            // Запуск автомата (он внутри сам проверит чекбоксы)
+            startWateringSequence();
+        }
+    }
+
+    if (cur_min != start_min)
+        already_watered = false;
+}
+
+void update_widgets()
+{
+    static uint32_t timer1 = 0;
+    if (millis() - timer1 < 300)
+        return;
+
+    timer1 = millis();
+    if (!watering_active)
+    {
+        if (db[kk::z1_on].toBool() || db[kk::z2_on].toBool() || db[kk::z3_on].toBool())
+            status = "Ожидание расписания";
+        else
+            status = "Автополив выключен";
+    }
+    else
+    {
+        uint32_t elapsed = millis() - zone_start_millis;
+        uint32_t limit = (uint32_t)zone_durations[current_zone] * 60 * 1000;
+        if (limit > elapsed)
+        {
+            uint32_t passed = limit - elapsed;
+            uint32_t allSeconds = passed / 1000;
+            char buf[40];
+            sprintf(buf, "ПОЛИВ: Зона %d (%02d:%02d)", current_zone + 1, (allSeconds / 60) % 60, allSeconds % 60);
+            status = buf;
+        }
+    }
+
+    auto u = sett.updater();
+    u.update(kk::status_str, status.c_str());
+    if (!watering_active)
+    {
+        u.updateColor(kk::button, sets::Colors::Green)
+            .updateText(kk::button, "Запустить полив сейчас");
+    }
+    else
+    {
+        u.updateColor(kk::button, sets::Colors::Red)
+            .updateText(kk::button, "ОСТАНОВИТЬ ВСЁ");
+    }
+}
+
+void loop()
+{
+    sett.tick();
+    static uint32_t timer = 0;
+
+    if (millis() - timer >= 1000)
+    {
+        timer = millis();
+        sett.updater()
+            .update(kk::time_str, sett.rtc.toString());
+
+        // 1. Проверяем таймер текущей активной зоны
+        if (watering_active && current_zone >= 0 && current_zone < 3)
+        {
+            uint32_t elapsed = millis() - zone_start_millis;
+            uint32_t limit = (uint32_t)zone_durations[current_zone] * 60 * 1000;
+
+            if (elapsed >= limit)
+            {
+                goToNextZone();
+            }
+        }
+
+        // 2. Проверяем наступление времени старта по расписанию
+        if (!watering_active)
+        {
+            // Serial.println(sett.rtc.toString());
+            // Serial.println(getLocalTimeString());
+            if (sett.rtc.year() > 2025)
+            {
+
+                checkSchedule();
+            }
+        }
+    }
+    update_widgets();
+}

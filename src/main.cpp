@@ -3,6 +3,7 @@
 #include <GyverDBFile.h>     // База данных для автосохранения
 #include <SettingsGyverWS.h> // Конструктор веб-интерфейса
 #include <LittleFS.h>
+
 const char *ap_ssid = "controller";
 const char *ap_pass = "11111111";
 
@@ -58,7 +59,7 @@ void turnOffAllRelays()
 {
     for (int i = 0; i < 4; i++)
     {
-        // digitalWrite(RELAY_PINS[i], LOW);
+        digitalWrite(RELAY_PINS[i], LOW);
         RELAY_STATE[i] = false;
         sett.updater().update(RELAY_KEYS[i], RELAY_STATE[i]);
     }
@@ -69,31 +70,37 @@ void goToNextZone()
 {
     turnOffAllRelays(); // Отключаем активное реле
 
-    current_zone++; // Переходим к следующему реле
-
-    // Если прошли все 3 зоны — завершаем сессию
-    if (current_zone >= 3)
+    // Ищем следующую зону, которая должна поливаться
+    bool found_next = false;
+    while (!found_next)
     {
-        watering_active = false;
-        current_zone = -1;
-        // status = "Ожидание расписания";
-        Serial.println(">>> Сессия полива полностью завершена <<<");
-        return;
-    }
+        current_zone++; // Переходим к следующему реле
 
-    // Если для зоны установлено 0 минут — пропускаем её и идем дальше
-    if (zone_durations[current_zone] <= 0)
-    {
-        Serial.print("Зона ");
-        Serial.print(current_zone + 1);
-        Serial.println(" пропущена (0 мин).");
-        goToNextZone();
-        return;
+        // Если прошли все 3 зоны — завершаем сессию
+        if (current_zone >= 3)
+        {
+            watering_active = false;
+            current_zone = -1;
+            Serial.println(">>> Сессия полива полностью завершена <<<");
+            return;
+        }
+
+        // Проверяем, установлена ли длительность для зоны
+        if (zone_durations[current_zone] > 0)
+        {
+            found_next = true; // Нашли следующую активную зону
+        }
+        else
+        {
+            Serial.print("Зона ");
+            Serial.print(current_zone + 1);
+            Serial.println(" пропущена (0 мин).");
+        }
     }
 
     // Включаем реле текущей зоны
-    // digitalWrite(RELAY_PINS[current_zone], HIGH);
-    // digitalWrite(RELAY_PINS[3], HIGH);
+    digitalWrite(RELAY_PINS[current_zone], HIGH);
+    digitalWrite(RELAY_PINS[3], HIGH);
 
     RELAY_STATE[current_zone] = true;
     RELAY_STATE[3] = true;
@@ -234,30 +241,37 @@ void build(sets::Builder &b)
 
             if (b.Switch(100, "Реле зоны 1", &RELAY_STATE[0]))
             {
-                // digitalWrite(RELAY_PINS[0], RELAY_STATE[0]);
+                digitalWrite(RELAY_PINS[0], RELAY_STATE[0]);
                 Serial.printf("Клик по Switch1! Новый статус: %d\n", RELAY_STATE[0]);
             }
             if (b.Switch(101, "Реле зоны 2", &RELAY_STATE[1]))
             {
-                // digitalWrite(RELAY_PINS[1], RELAY_STATE[1]);
+                digitalWrite(RELAY_PINS[1], RELAY_STATE[1]);
                 Serial.printf("Клик по Switch2! Новый статус: %d\n", RELAY_STATE[1]);
             }
             if (b.Switch(102, "Реле зоны 3", &RELAY_STATE[2]))
             {
-                // digitalWrite(RELAY_PINS[2], RELAY_STATE[2]);
+                digitalWrite(RELAY_PINS[2], RELAY_STATE[2]);
                 Serial.printf("Клик по Switch3! Новый статус: %d\n", RELAY_STATE[2]);
             }
             if (b.Switch(103, "Реле 24v", &RELAY_STATE[3]))
             {
-                // digitalWrite(RELAY_PINS[3], RELAY_STATE[3]);
+                digitalWrite(RELAY_PINS[3], RELAY_STATE[3]);
                 Serial.printf("Клик по Switch4! Новый статус: %d\n", RELAY_STATE[3]);
             }
             b.Paragraph("  ВНИМАНИЕ❗", "При входе в это меню, выполняемая в данный момент программа останавливается!");
 
-            b.endMenu();
+            b.endMenu(); // Ручное управление
         }
-        b.endMenu(); // не забываем завершить меню
+        b.endMenu(); // Расписание полива
     }
+} // build()
+
+void onSyncCallback(uint32_t unix_time)
+{
+    // момент и время синхронизации
+    Serial.print("Sync: ");
+    Serial.println(unix_time);
 }
 
 void setup()
@@ -266,8 +280,8 @@ void setup()
 
     for (int i = 0; i < 4; i++)
     {
-        // pinMode(RELAY_PINS[i], OUTPUT);
-        // digitalWrite(RELAY_PINS[i], LOW);
+        pinMode(RELAY_PINS[i], OUTPUT);
+        digitalWrite(RELAY_PINS[i], LOW);
         RELAY_STATE[i] = false;
     }
 
@@ -313,7 +327,8 @@ void setup()
     // установить версию прошивки для отображения в меню
     sett.setVersion("1.0");
     // установить инфо о проекте (отображается на вкладке настроек и файлов)
-    sett.setProjectInfo("Контроллер полива на дачу", "http://111.111.111");
+    sett.setProjectInfo("Контроллер полива на дачу", "https://github.com/dicson/controller-mexico");
+    sett.rtc.onSync(onSyncCallback);
 }
 
 void checkSchedule()

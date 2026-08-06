@@ -3,13 +3,17 @@
 #include <GyverDBFile.h>     // База данных для автосохранения
 #include <SettingsGyverWS.h> // Конструктор веб-интерфейса
 #include <LittleFS.h>
+#include <GyverDS3231.h>
 
 const char *ap_ssid = "controller";
 const char *ap_pass = "11111111";
 
 GyverDBFile db(&LittleFS, "/data.db");
+GyverDS3231 rtc;
 SettingsGyverWS sett("Контроллер полива", &db);
-
+#define MY_SDA 17
+#define MY_SCL 18
+String alert_f;
 // Назначение пинов для трех реле (зон)
 const uint8_t RELAY_PINS[4] = {32, 33, 25, 26};
 bool RELAY_STATE[4] = {0};
@@ -59,7 +63,7 @@ void turnOffAllRelays()
 {
     for (int i = 0; i < 4; i++)
     {
-        digitalWrite(RELAY_PINS[i], LOW);
+        // digitalWrite(RELAY_PINS[i], LOW);
         RELAY_STATE[i] = false;
         sett.updater().update(RELAY_KEYS[i], RELAY_STATE[i]);
     }
@@ -132,6 +136,9 @@ void startWateringSequence()
 }
 void build(sets::Builder &b)
 {
+
+    b.Label(alert_f);
+
     b.Label(kk::time_str, "Текущее время", sett.rtc.toString());
 
     if (b.beginRow("Состояние реле", sets::DivType::Block))
@@ -269,9 +276,7 @@ void build(sets::Builder &b)
 
 void onSyncCallback(uint32_t unix_time)
 {
-    // момент и время синхронизации
-    Serial.print("Sync: ");
-    Serial.println(unix_time);
+    rtc.setUnix(unix_time);
 }
 
 void setup()
@@ -280,8 +285,8 @@ void setup()
 
     for (int i = 0; i < 4; i++)
     {
-        pinMode(RELAY_PINS[i], OUTPUT);
-        digitalWrite(RELAY_PINS[i], LOW);
+        // pinMode(RELAY_PINS[i], OUTPUT);
+        // digitalWrite(RELAY_PINS[i], LOW);
         RELAY_STATE[i] = false;
     }
 
@@ -323,12 +328,33 @@ void setup()
 
     sett.begin();
     setStampZone(3);
+
+    // Инициализация I2C с указанными пинами
+    Wire.end();
+    Wire.begin(MY_SDA, MY_SCL);
+    delay(4000);
+    // Инициализация RTC
+    rtc.begin();
+    if (!rtc.isOK())
+    {
+        Serial.println("Error: DS3231 RTC не найден!");
+        alert_f = "RTC не работает!!!";
+    }
+    else
+    {
+        char buf[40];
+        sprintf(buf, "RTC в норме %d °C", rtc.getTempInt());
+        alert_f = buf;
+        if (rtc.isReset())
+            // был сброс питания RTC, время некорректное
+            alert_f = "RTC села батарейка!!!";
+        sett.rtc.sync(rtc);
+        sett.rtc.onSync(onSyncCallback);
+    }
     sett.onBuild(build);
-    // установить версию прошивки для отображения в меню
     sett.setVersion("1.0");
     // установить инфо о проекте (отображается на вкладке настроек и файлов)
     sett.setProjectInfo("Контроллер полива на дачу", "https://github.com/dicson/controller-mexico");
-    sett.rtc.onSync(onSyncCallback);
 }
 
 void checkSchedule()
@@ -336,8 +362,15 @@ void checkSchedule()
     int cur_hour = sett.rtc.hour();
     int cur_min = sett.rtc.minute();
     int cur_day = sett.rtc.weekDay();
-    String day_key = "d_" + String(cur_day);
-    bool day_allowed = db[day_key].toBool();
+
+    // Массив ключей согласно порядку в enum kk
+    static const kk day_keys[] = {kk::d_1, kk::d_2, kk::d_3, kk::d_4, kk::d_5, kk::d_6, kk::d_7};
+    
+    // Безопасный доступ
+    bool day_allowed = false;
+    if (cur_day >= 1 && cur_day <= 7) {
+        day_allowed = db[day_keys[cur_day - 1]].toBool();
+    }
 
     int start_hour = db[kk::tm_hour].toInt();
     int start_min = db[kk::tm_min].toInt();
@@ -411,6 +444,8 @@ void loop()
         sett.updater()
             .update(kk::time_str, sett.rtc.toString());
 
+        Serial.println(sett.rtc.toString());
+
         // 1. Проверяем таймер текущей активной зоны
         if (watering_active && current_zone >= 0 && current_zone < 3)
         {
@@ -418,22 +453,11 @@ void loop()
             uint32_t limit = (uint32_t)zone_durations[current_zone] * 60 * 1000;
 
             if (elapsed >= limit)
-            {
                 goToNextZone();
-            }
         }
-
         // 2. Проверяем наступление времени старта по расписанию
         if (!watering_active)
-        {
-            // Serial.println(sett.rtc.toString());
-            // Serial.println(getLocalTimeString());
-            if (sett.rtc.year() > 2025)
-            {
-
-                checkSchedule();
-            }
-        }
+            checkSchedule();
     }
     update_widgets();
 }

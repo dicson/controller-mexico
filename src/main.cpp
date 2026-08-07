@@ -13,7 +13,10 @@ GyverDS3231 rtc;
 SettingsGyverWS sett("Контроллер полива", &db);
 #define MY_SDA 17
 #define MY_SCL 18
+#define LED_D14 23
+
 String alert_f;
+bool rtc_error = false;
 // Назначение пинов для трех реле (зон)
 const uint8_t RELAY_PINS[4] = {32, 33, 25, 26};
 bool RELAY_STATE[4] = {0};
@@ -58,12 +61,27 @@ enum kk : size_t
 
 const kk RELAY_KEYS[4] = {kk::relay_1, kk::relay_2, kk::relay_3, kk::relay_4};
 
+void blinkRTCErrorLED()
+{
+    if (rtc_error)
+    {
+        static uint32_t last_blink = 0;
+        static bool led_state = false;
+        if (millis() - last_blink >= 500)
+        {
+            led_state = !led_state;
+            digitalWrite(LED_D14, led_state);
+            last_blink = millis();
+        }
+    }
+}
+
 // Функция принудительного выключения всех реле
 void turnOffAllRelays()
 {
     for (int i = 0; i < 4; i++)
     {
-        // digitalWrite(RELAY_PINS[i], LOW);
+        digitalWrite(RELAY_PINS[i], LOW);
         RELAY_STATE[i] = false;
         sett.updater().update(RELAY_KEYS[i], RELAY_STATE[i]);
     }
@@ -285,10 +303,12 @@ void setup()
 
     for (int i = 0; i < 4; i++)
     {
-        // pinMode(RELAY_PINS[i], OUTPUT);
-        // digitalWrite(RELAY_PINS[i], LOW);
+        pinMode(RELAY_PINS[i], OUTPUT);
+        digitalWrite(RELAY_PINS[i], LOW);
         RELAY_STATE[i] = false;
     }
+    // Настройка программируемого светодиода D14
+    pinMode(LED_D14, OUTPUT);
 
     if (!LittleFS.begin(true))
         Serial.println("LittleFS error");
@@ -339,6 +359,7 @@ void setup()
     {
         Serial.println("Error: DS3231 RTC не найден!");
         alert_f = "RTC не работает!!!";
+        rtc_error = true;
     }
     else
     {
@@ -346,8 +367,11 @@ void setup()
         sprintf(buf, "RTC в норме %d °C", rtc.getTempInt());
         alert_f = buf;
         if (rtc.isReset())
+        {
             // был сброс питания RTC, время некорректное
             alert_f = "RTC села батарейка!!!";
+            rtc_error = true;
+        }
         sett.rtc.sync(rtc);
         sett.rtc.onSync(onSyncCallback);
     }
@@ -365,10 +389,11 @@ void checkSchedule()
 
     // Массив ключей согласно порядку в enum kk
     static const kk day_keys[] = {kk::d_1, kk::d_2, kk::d_3, kk::d_4, kk::d_5, kk::d_6, kk::d_7};
-    
+
     // Безопасный доступ
     bool day_allowed = false;
-    if (cur_day >= 1 && cur_day <= 7) {
+    if (cur_day >= 1 && cur_day <= 7)
+    {
         day_allowed = db[day_keys[cur_day - 1]].toBool();
     }
 
@@ -396,7 +421,6 @@ void update_widgets()
     static uint32_t timer1 = 0;
     if (millis() - timer1 < 300)
         return;
-
     timer1 = millis();
     if (!watering_active)
     {
@@ -436,6 +460,7 @@ void update_widgets()
 void loop()
 {
     sett.tick();
+    blinkRTCErrorLED();
     static uint32_t timer = 0;
 
     if (millis() - timer >= 1000)
@@ -445,6 +470,7 @@ void loop()
             .update(kk::time_str, sett.rtc.toString());
 
         Serial.println(sett.rtc.toString());
+        
 
         // 1. Проверяем таймер текущей активной зоны
         if (watering_active && current_zone >= 0 && current_zone < 3)

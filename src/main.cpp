@@ -4,6 +4,12 @@
 #include <SettingsGyverWS.h> // Конструктор веб-интерфейса
 #include <LittleFS.h>
 #include <GyverDS3231.h>
+#include <GTimer.h>
+
+#define MY_SDA 17
+#define MY_SCL 18
+#define LED_D14 23
+#define VERSION "1.0"
 
 const char *ap_ssid = "controller";
 const char *ap_pass = "11111111";
@@ -11,23 +17,17 @@ const char *ap_pass = "11111111";
 GyverDBFile db(&LittleFS, "/data.db");
 GyverDS3231 rtc;
 SettingsGyverWS sett("Контроллер полива", &db);
-#define MY_SDA 17
-#define MY_SCL 18
-#define LED_D14 23
 
 String alert_f;
+String status;
 bool rtc_error = false;
-// Назначение пинов для трех реле (зон)
 const uint8_t RELAY_PINS[4] = {32, 33, 25, 26};
 bool RELAY_STATE[4] = {0};
-// Переменные логики полива
 bool already_watered = false;
-// Переменные автомата состояний (очереди)
 bool watering_active = false;
-int current_zone = -1;
 uint32_t zone_start_millis = 0;
 int zone_durations[3] = {0, 0, 0};
-String status;
+int current_zone = -1;
 
 enum kk : size_t
 {
@@ -58,21 +58,41 @@ enum kk : size_t
     z3_on,
     z4_on,
 };
-
 const kk RELAY_KEYS[4] = {kk::relay_1, kk::relay_2, kk::relay_3, kk::relay_4};
+static GTimer<millis> timer_focus(500, false, GTMode::Timeout);
+void update_status();
+
+void update_hold_status()
+{
+    if (!watering_active)
+    {
+        if (db[kk::z1_on].toBool() || db[kk::z2_on].toBool() || db[kk::z3_on].toBool())
+            status = "Ожидание расписания";
+        else
+            status = "Автополив выключен";
+        auto u = sett.updater();
+        u.update(kk::status_str, status.c_str());
+    }
+}
+
+void onFocusChange()
+{
+    if (sett.focused())
+        timer_focus.start();
+}
 
 void blinkRTCErrorLED()
 {
     if (rtc_error)
     {
-        static uint32_t last_blink = 0;
-        static bool led_state = false;
-        if (millis() - last_blink >= 500)
+        static GTimer<millis> tmr(10, false, GTMode::Timeout);
+        EVERY_S(1.5)
         {
-            led_state = !led_state;
-            digitalWrite(LED_D14, led_state);
-            last_blink = millis();
+            digitalWrite(LED_D14, HIGH);
+            tmr.start();
         }
+        if (tmr)
+            digitalWrite(LED_D14, LOW);
     }
 }
 
@@ -85,6 +105,17 @@ void turnOffAllRelays()
         RELAY_STATE[i] = false;
         sett.updater().update(RELAY_KEYS[i], RELAY_STATE[i]);
     }
+}
+
+void stop_action()
+{
+    turnOffAllRelays();
+    watering_active = false;
+    current_zone = -1;
+    auto u = sett.updater();
+    u.updateColor(kk::button, sets::Colors::Green)
+        .updateText(kk::button, "Запустить полив сейчас");
+    update_hold_status();
 }
 
 // Функция перехода к следующей зоне в очереди
@@ -101,9 +132,8 @@ void goToNextZone()
         // Если прошли все 3 зоны — завершаем сессию
         if (current_zone >= 3)
         {
-            watering_active = false;
-            current_zone = -1;
             Serial.println(">>> Сессия полива полностью завершена <<<");
+            stop_action();
             return;
         }
 
@@ -130,8 +160,9 @@ void goToNextZone()
     // Выбираем соответствующий ключ из перечисления
     kk relay_keys[] = {kk::relay_1, kk::relay_2, kk::relay_3};
     sett.updater().update(relay_keys[current_zone], RELAY_STATE[current_zone]);
-    // status = "ПОЛИВ: Зона " + String(current_zone + 1);
+
     zone_start_millis = millis();
+    update_status();
 
     Serial.print(">>> Включена Зона ");
     Serial.print(current_zone + 1);
@@ -143,6 +174,12 @@ void goToNextZone()
 // Функция запуска последовательного полива с учетом чекбоксов
 void startWateringSequence()
 {
+    if (db[kk::z1_on].toBool() || db[kk::z2_on].toBool() || db[kk::z3_on].toBool())
+    {
+        auto u = sett.updater();
+        u.updateColor(kk::button, sets::Colors::Red)
+            .updateText(kk::button, "ОСТАНОВИТЬ ВСЁ");
+    }
     // Проверяем каждую зону: если тумблер включен, берем минуты из БД, если выключен — пишем 0 (пропуск)
     zone_durations[0] = db[kk::z1_on].toBool() ? db[kk::dur_1].toInt() : 0;
     zone_durations[1] = db[kk::z2_on].toBool() ? db[kk::dur_2].toInt() : 0;
@@ -182,22 +219,18 @@ void build(sets::Builder &b)
     }
 
     // БЛОК РУЧНОГО ЗАПУСКА ВСЕЙ ЦЕПОЧКИ
+    auto u = sett.updater();
     if (!watering_active)
     {
         if (b.Button(kk::button, "Запустить полив сейчас", sets::Colors::Green))
-        {
             startWateringSequence();
-        }
     }
     else
     {
         if (b.Button(kk::button, "ОСТАНОВИТЬ ВСЁ", sets::Colors::Red))
         {
-            turnOffAllRelays();
-            watering_active = false;
-            current_zone = -1;
             Serial.println("Принудительная остановка всей очереди");
-            status = "Ожидание расписания";
+            stop_action();
         }
     }
 
@@ -206,19 +239,22 @@ void build(sets::Builder &b)
     {
         if (b.beginRow("🌱 Зона 1", sets::DivType::Default))
         {
-            b.Switch(kk::z1_on, "Поливать");
+            if (b.Switch(kk::z1_on, "Поливать"))
+                update_hold_status();
             b.Spinner(kk::dur_1, "(минут)", 0, 60, 1);
             b.endRow();
         }
         if (b.beginRow("🌱 Зона 2", sets::DivType::Block))
         {
-            b.Switch(kk::z2_on, "Поливать");
+            if (b.Switch(kk::z2_on, "Поливать"))
+                update_hold_status();
             b.Spinner(kk::dur_2, "(минут)", 0, 60, 1);
             b.endRow();
         }
         if (b.beginRow("🌱 Зона 3", sets::DivType::Block))
         {
-            b.Switch(kk::z3_on, "Поливать");
+            if (b.Switch(kk::z3_on, "Поливать"))
+                update_hold_status();
             b.Spinner(kk::dur_3, "(минут)", 0, 60, 1);
             b.endRow();
         }
@@ -257,11 +293,9 @@ void build(sets::Builder &b)
         {
             if (b.enterMenu())
             {
-                turnOffAllRelays();
-                watering_active = false;
-                current_zone = -1;
                 Serial.println("Принудительная остановка всей очереди");
-                status = "Ожидание расписания";
+                stop_action();
+                // db.dump(Serial);
             }
 
             if (b.Switch(100, "Реле зоны 1", &RELAY_STATE[0]))
@@ -348,12 +382,13 @@ void setup()
 
     sett.begin();
     setStampZone(3);
+    sett.rtc.sync(1767214800);
 
     // Инициализация I2C с указанными пинами
     Wire.end();
     Wire.begin(MY_SDA, MY_SCL);
-    delay(4000);
-    // Инициализация RTC
+    // delay(4000);
+    //  Инициализация RTC
     rtc.begin();
     if (!rtc.isOK())
     {
@@ -376,9 +411,10 @@ void setup()
         sett.rtc.onSync(onSyncCallback);
     }
     sett.onBuild(build);
-    sett.setVersion("1.0");
+    sett.setVersion(VERSION);
     // установить инфо о проекте (отображается на вкладке настроек и файлов)
     sett.setProjectInfo("Контроллер полива на дачу", "https://github.com/dicson/controller-mexico");
+    sett.onFocusChange(onFocusChange);
 }
 
 void checkSchedule()
@@ -416,44 +452,19 @@ void checkSchedule()
         already_watered = false;
 }
 
-void update_widgets()
+void update_status()
 {
-    static uint32_t timer1 = 0;
-    if (millis() - timer1 < 300)
-        return;
-    timer1 = millis();
-    if (!watering_active)
+    uint32_t elapsed = millis() - zone_start_millis;
+    uint32_t limit = (uint32_t)zone_durations[current_zone] * 60 * 1000;
+    if (limit > elapsed)
     {
-        if (db[kk::z1_on].toBool() || db[kk::z2_on].toBool() || db[kk::z3_on].toBool())
-            status = "Ожидание расписания";
-        else
-            status = "Автополив выключен";
-    }
-    else
-    {
-        uint32_t elapsed = millis() - zone_start_millis;
-        uint32_t limit = (uint32_t)zone_durations[current_zone] * 60 * 1000;
-        if (limit > elapsed)
-        {
-            uint32_t passed = limit - elapsed;
-            uint32_t allSeconds = passed / 1000;
-            char buf[40];
-            sprintf(buf, "ПОЛИВ: Зона %d (%02d:%02d)", current_zone + 1, (allSeconds / 60) % 60, allSeconds % 60);
-            status = buf;
-        }
-    }
-
-    auto u = sett.updater();
-    u.update(kk::status_str, status.c_str());
-    if (!watering_active)
-    {
-        u.updateColor(kk::button, sets::Colors::Green)
-            .updateText(kk::button, "Запустить полив сейчас");
-    }
-    else
-    {
-        u.updateColor(kk::button, sets::Colors::Red)
-            .updateText(kk::button, "ОСТАНОВИТЬ ВСЁ");
+        uint32_t passed = limit - elapsed;
+        uint32_t allSeconds = passed / 1000;
+        char buf[40];
+        snprintf(buf, sizeof(buf), "ПОЛИВ: Зона %d (%02d:%02d)", current_zone + 1, (allSeconds / 60) % 60, allSeconds % 60);
+        status = buf;
+        auto u = sett.updater();
+        u.update(kk::status_str, status.c_str());
     }
 }
 
@@ -461,16 +472,12 @@ void loop()
 {
     sett.tick();
     blinkRTCErrorLED();
-    static uint32_t timer = 0;
 
-    if (millis() - timer >= 1000)
+    EVERY_S(1)
     {
-        timer = millis();
-        sett.updater()
-            .update(kk::time_str, sett.rtc.toString());
+        sett.updater().update(kk::time_str, sett.rtc.toString());
 
         Serial.println(sett.rtc.toString());
-        
 
         // 1. Проверяем таймер текущей активной зоны
         if (watering_active && current_zone >= 0 && current_zone < 3)
@@ -480,10 +487,34 @@ void loop()
 
             if (elapsed >= limit)
                 goToNextZone();
+            update_status();
         }
         // 2. Проверяем наступление времени старта по расписанию
         if (!watering_active)
             checkSchedule();
     }
-    update_widgets();
+
+    if (timer_focus)
+    {
+        Serial.println("обновляем реле");
+        for (int i = 0; i < 3; i++)
+        {
+            sett.updater().update(RELAY_KEYS[i], RELAY_STATE[i]);
+        }
+        if (!watering_active)
+        {
+            // clang-format off
+            sett.updater()
+                .updateColor(kk::button, sets::Colors::Green)
+                .updateText(kk::button, "Запустить полив сейчас");
+        }
+        else
+        {
+            sett.updater()
+                .updateColor(kk::button, sets::Colors::Red)
+                .updateText(kk::button, "ОСТАНОВИТЬ ВСЁ");
+            // clang-format on
+        }
+        update_hold_status();
+    }
 }

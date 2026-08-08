@@ -60,9 +60,9 @@ enum kk : size_t
 };
 const kk RELAY_KEYS[4] = {kk::relay_1, kk::relay_2, kk::relay_3, kk::relay_4};
 static GTimer<millis> timer_focus(500, false, GTMode::Timeout);
-void update_status();
+void updateStatus();
 
-void update_hold_status()
+void updateHoldStatus()
 {
     if (!watering_active)
     {
@@ -107,7 +107,7 @@ void turnOffAllRelays()
     }
 }
 
-void stop_action()
+void stopAction()
 {
     turnOffAllRelays();
     watering_active = false;
@@ -115,7 +115,7 @@ void stop_action()
     auto u = sett.updater();
     u.updateColor(kk::button, sets::Colors::Green)
         .updateText(kk::button, "Запустить полив сейчас");
-    update_hold_status();
+    updateHoldStatus();
 }
 
 // Функция перехода к следующей зоне в очереди
@@ -133,7 +133,7 @@ void goToNextZone()
         if (current_zone >= 3)
         {
             Serial.println(">>> Сессия полива полностью завершена <<<");
-            stop_action();
+            stopAction();
             return;
         }
 
@@ -162,7 +162,7 @@ void goToNextZone()
     sett.updater().update(relay_keys[current_zone], RELAY_STATE[current_zone]);
 
     zone_start_millis = millis();
-    update_status();
+    updateStatus();
 
     Serial.print(">>> Включена Зона ");
     Serial.print(current_zone + 1);
@@ -230,7 +230,7 @@ void build(sets::Builder &b)
         if (b.Button(kk::button, "ОСТАНОВИТЬ ВСЁ", sets::Colors::Red))
         {
             Serial.println("Принудительная остановка всей очереди");
-            stop_action();
+            stopAction();
         }
     }
 
@@ -240,21 +240,21 @@ void build(sets::Builder &b)
         if (b.beginRow("🌱 Зона 1", sets::DivType::Default))
         {
             if (b.Switch(kk::z1_on, "Поливать"))
-                update_hold_status();
+                updateHoldStatus();
             b.Spinner(kk::dur_1, "(минут)", 0, 60, 1);
             b.endRow();
         }
         if (b.beginRow("🌱 Зона 2", sets::DivType::Block))
         {
             if (b.Switch(kk::z2_on, "Поливать"))
-                update_hold_status();
+                updateHoldStatus();
             b.Spinner(kk::dur_2, "(минут)", 0, 60, 1);
             b.endRow();
         }
         if (b.beginRow("🌱 Зона 3", sets::DivType::Block))
         {
             if (b.Switch(kk::z3_on, "Поливать"))
-                update_hold_status();
+                updateHoldStatus();
             b.Spinner(kk::dur_3, "(минут)", 0, 60, 1);
             b.endRow();
         }
@@ -294,7 +294,7 @@ void build(sets::Builder &b)
             if (b.enterMenu())
             {
                 Serial.println("Принудительная остановка всей очереди");
-                stop_action();
+                stopAction();
                 // db.dump(Serial);
             }
 
@@ -452,7 +452,7 @@ void checkSchedule()
         already_watered = false;
 }
 
-void update_status()
+void updateStatus()
 {
     uint32_t elapsed = millis() - zone_start_millis;
     uint32_t limit = (uint32_t)zone_durations[current_zone] * 60 * 1000;
@@ -487,7 +487,7 @@ void loop()
 
             if (elapsed >= limit)
                 goToNextZone();
-            update_status();
+            updateStatus();
         }
         // 2. Проверяем наступление времени старта по расписанию
         if (!watering_active)
@@ -515,6 +515,6 @@ void loop()
                 .updateText(kk::button, "ОСТАНОВИТЬ ВСЁ");
             // clang-format on
         }
-        update_hold_status();
+        updateHoldStatus();
     }
 }

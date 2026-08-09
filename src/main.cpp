@@ -5,11 +5,19 @@
 #include <LittleFS.h>
 #include <GyverDS3231.h>
 #include <GTimer.h>
+#include "driver/ledc.h"
 
 #define MY_SDA 17
 #define MY_SCL 18
-#define LED_D14 23
 #define VERSION "1.0"
+
+// Определяем пин и параметры ШИМ
+#define LED_PIN 23                        // Любой свободный GPIO на вашем ESP32-S3
+#define LEDC_CHANNEL LEDC_CHANNEL_0       // Канал от 0 до 7
+#define LEDC_MODE LEDC_LOW_SPEED_MODE     // Для S3 доступен только LOW_SPEED_MODE
+#define LEDC_TIMER LEDC_TIMER_0           // Таймер от 0 до 3
+#define LEDC_RESOLUTION LEDC_TIMER_12_BIT // Разрядность 12 бит (значения от 0 до 4095)
+#define LEDC_FREQUENCY 5000               // Частота 5 кГц
 
 const char *ap_ssid = "controller";
 const char *ap_pass = "11111111";
@@ -31,6 +39,7 @@ int current_zone = -1;
 
 enum kk : size_t
 {
+    // время запуска
     tm_hour,
     tm_min,
     // Дни недели
@@ -79,14 +88,20 @@ void blinkRTCErrorLED()
 {
     if (rtc_error)
     {
-        static GTimer<millis> tmr(10, false, GTMode::Timeout);
         EVERY_S(1.5)
         {
-            digitalWrite(LED_D14, HIGH);
-            tmr.start();
+            ledc_set_fade_time_and_start(LEDC_MODE, LEDC_CHANNEL, 2000, 100, LEDC_FADE_NO_WAIT);
+            ledc_set_fade_time_and_start(LEDC_MODE, LEDC_CHANNEL, 0, 100, LEDC_FADE_NO_WAIT);
         }
-        if (tmr)
-            digitalWrite(LED_D14, LOW);
+    }
+    if (!rtc_error)
+     {
+        EVERY_S(4.5)
+        {
+            ledc_set_fade_time_and_start(LEDC_MODE, LEDC_CHANNEL, 1000, 1500, LEDC_FADE_NO_WAIT);
+            ledc_set_fade_time_and_start(LEDC_MODE, LEDC_CHANNEL, 0, 1500, LEDC_FADE_NO_WAIT);
+        }
+
     }
 }
 
@@ -329,7 +344,28 @@ void setup()
         RELAY_STATE[i] = false;
     }
     // Настройка программируемого светодиода D14
-    pinMode(LED_D14, OUTPUT);
+    // 1. Настройка таймера LEDC
+    ledc_timer_config_t ledc_timer = {
+        .speed_mode = LEDC_MODE,
+        .duty_resolution = LEDC_RESOLUTION,
+        .timer_num = LEDC_TIMER,
+        .freq_hz = LEDC_FREQUENCY,
+        .clk_cfg = LEDC_AUTO_CLK};
+    ledc_timer_config(&ledc_timer);
+
+    // 2. Настройка канала LEDC
+    ledc_channel_config_t ledc_channel = {
+        .gpio_num = LED_PIN,
+        .speed_mode = LEDC_MODE,
+        .channel = LEDC_CHANNEL,
+        .intr_type = LEDC_INTR_DISABLE,
+        .timer_sel = LEDC_TIMER,
+        .duty = 0, // Начальная яркость 0
+        .hpoint = 0};
+    ledc_channel_config(&ledc_channel);
+
+    // 3. ОБЯЗАТЕЛЬНО: Установка службы fade-анимаций
+    ledc_fade_func_install(0);
 
     if (!LittleFS.begin(true))
         Serial.println("LittleFS error");
@@ -375,7 +411,7 @@ void setup()
     Wire.end();
     Wire.begin(MY_SDA, MY_SCL);
     // delay(4000);
-    //  Инициализация RTC
+    // Инициализация RTC
     rtc.begin();
     if (!rtc.isOK())
     {
@@ -409,19 +445,17 @@ void checkSchedule()
     int cur_hour = sett.rtc.hour();
     int cur_min = sett.rtc.minute();
     int cur_day = sett.rtc.weekDay();
-
+    int start_hour = db[kk::tm_hour].toInt();
+    int start_min = db[kk::tm_min].toInt();
     // Массив ключей согласно порядку в enum kk
     static const kk day_keys[] = {kk::d_1, kk::d_2, kk::d_3, kk::d_4, kk::d_5, kk::d_6, kk::d_7};
-
     // Безопасный доступ
     bool day_allowed = false;
+
     if (cur_day >= 1 && cur_day <= 7)
     {
         day_allowed = db[day_keys[cur_day - 1]].toBool();
     }
-
-    int start_hour = db[kk::tm_hour].toInt();
-    int start_min = db[kk::tm_min].toInt();
 
     if (day_allowed && cur_hour == start_hour && cur_min == start_min)
     {

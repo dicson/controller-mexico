@@ -61,6 +61,7 @@ enum kk : size_t
 const kk RELAY_KEYS[4] = {kk::relay_1, kk::relay_2, kk::relay_3, kk::relay_4};
 static GTimer<millis> timer_focus(500, false, GTMode::Timeout);
 void updateStatus();
+sets::Logger logger(149 + 84);
 
 void updateHoldStatus()
 {
@@ -179,6 +180,8 @@ void startWateringSequence()
         auto u = sett.updater();
         u.updateColor(kk::button, sets::Colors::Red)
             .updateText(kk::button, "ОСТАНОВИТЬ ВСЁ");
+        logger.println(sett.rtc.toString());
+        u.update(H(log), logger);
     }
     // Проверяем каждую зону: если тумблер включен, берем минуты из БД, если выключен — пишем 0 (пропуск)
     zone_durations[0] = db[kk::z1_on].toBool() ? db[kk::dur_1].toInt() : 0;
@@ -318,7 +321,10 @@ void build(sets::Builder &b)
                 digitalWrite(RELAY_PINS[3], RELAY_STATE[3]);
                 Serial.printf("Клик по Switch4! Новый статус: %d\n", RELAY_STATE[3]);
             }
-            b.Paragraph("  ВНИМАНИЕ❗", "При входе в это меню, выполняемая в данный момент программа останавливается!");
+            b.Paragraph("  ВНИМАНИЕ❗", "При входе в это меню, выполняемая в данный момент программа прерывается!");
+
+            // логгер
+            b.Log(H(log), logger, "Журнал запусков полива");
 
             b.endMenu(); // Ручное управление
         }

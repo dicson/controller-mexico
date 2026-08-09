@@ -31,15 +31,8 @@ int current_zone = -1;
 
 enum kk : size_t
 {
-    time_str,
     tm_hour,
     tm_min,
-    status_str,
-    button,
-    relay_1,
-    relay_2,
-    relay_3,
-    relay_4,
     // Дни недели
     d_1,
     d_2,
@@ -58,7 +51,7 @@ enum kk : size_t
     z3_on,
     z4_on,
 };
-const kk RELAY_KEYS[4] = {kk::relay_1, kk::relay_2, kk::relay_3, kk::relay_4};
+const size_t RELAY_KEYS[4] = {H(relay1), H(relay2), H(relay3), H(relay4)};
 static GTimer<millis> timer_focus(500, false, GTMode::Timeout);
 void updateStatus();
 sets::Logger logger(149 + 84);
@@ -72,7 +65,7 @@ void updateHoldStatus()
         else
             status = "Автополив выключен";
         auto u = sett.updater();
-        u.update(kk::status_str, status.c_str());
+        u.update(H(Status), status.c_str());
     }
 }
 
@@ -114,8 +107,8 @@ void stopAction()
     watering_active = false;
     current_zone = -1;
     auto u = sett.updater();
-    u.updateColor(kk::button, sets::Colors::Green)
-        .updateText(kk::button, "Запустить полив сейчас");
+    u.updateColor(H(Button), sets::Colors::Green)
+        .updateText(H(Button), "Запустить полив сейчас");
     updateHoldStatus();
 }
 
@@ -159,8 +152,7 @@ void goToNextZone()
     RELAY_STATE[3] = true;
 
     // Выбираем соответствующий ключ из перечисления
-    kk relay_keys[] = {kk::relay_1, kk::relay_2, kk::relay_3};
-    sett.updater().update(relay_keys[current_zone], RELAY_STATE[current_zone]);
+    sett.updater().update(RELAY_KEYS[current_zone], RELAY_STATE[current_zone]);
 
     zone_start_millis = millis();
     updateStatus();
@@ -178,8 +170,8 @@ void startWateringSequence()
     if (db[kk::z1_on].toBool() || db[kk::z2_on].toBool() || db[kk::z3_on].toBool())
     {
         auto u = sett.updater();
-        u.updateColor(kk::button, sets::Colors::Red)
-            .updateText(kk::button, "ОСТАНОВИТЬ ВСЁ");
+        u.updateColor(H(Button), sets::Colors::Red)
+            .updateText(H(Button), "ОСТАНОВИТЬ ВСЁ");
         logger.println(sett.rtc.toString());
         u.update(H(log), logger);
     }
@@ -197,13 +189,13 @@ void build(sets::Builder &b)
 
     b.Label(alert_f);
 
-    b.Label(kk::time_str, "Текущее время", sett.rtc.toString());
+    b.Label(H(Time), "Текущее время", sett.rtc.toString());
 
     if (b.beginRow("Состояние реле", sets::DivType::Block))
     {
-        b.LED(kk::relay_1, "реле 1", RELAY_STATE[0]);
-        b.LED(kk::relay_2, "реле 2", RELAY_STATE[1]);
-        b.LED(kk::relay_3, "реле 3", RELAY_STATE[2]);
+        b.LED(H(relay1), "реле 1", RELAY_STATE[0]);
+        b.LED(H(relay2), "реле 2", RELAY_STATE[1]);
+        b.LED(H(relay3), "реле 3", RELAY_STATE[2]);
         b.endRow();
     }
 
@@ -213,24 +205,24 @@ void build(sets::Builder &b)
             status = "Ожидание расписания";
         else
             status = "Автополив выключен";
-        b.Label(kk::status_str, "Статус", status);
+        b.Label(H(Status), "Статус", status);
     }
     else
     {
         status = "ПОЛИВ: Зона " + String(current_zone + 1);
-        b.Label(kk::status_str, "Статус", status);
+        b.Label(H(Status), "Статус", status);
     }
 
     // БЛОК РУЧНОГО ЗАПУСКА ВСЕЙ ЦЕПОЧКИ
     auto u = sett.updater();
     if (!watering_active)
     {
-        if (b.Button(kk::button, "Запустить полив сейчас", sets::Colors::Green))
+        if (b.Button(H(Button), "Запустить полив сейчас", sets::Colors::Green))
             startWateringSequence();
     }
     else
     {
-        if (b.Button(kk::button, "ОСТАНОВИТЬ ВСЁ", sets::Colors::Red))
+        if (b.Button(H(Button), "ОСТАНОВИТЬ ВСЁ", sets::Colors::Red))
         {
             Serial.println("Принудительная остановка всей очереди");
             stopAction();
@@ -301,26 +293,15 @@ void build(sets::Builder &b)
                 // db.dump(Serial);
             }
 
-            if (b.Switch(100, "Реле зоны 1", &RELAY_STATE[0]))
-            {
+            if (b.Switch(H(switch1), "Реле зоны 1", &RELAY_STATE[0]))
                 digitalWrite(RELAY_PINS[0], RELAY_STATE[0]);
-                Serial.printf("Клик по Switch1! Новый статус: %d\n", RELAY_STATE[0]);
-            }
-            if (b.Switch(101, "Реле зоны 2", &RELAY_STATE[1]))
-            {
+            if (b.Switch(H(switch2), "Реле зоны 2", &RELAY_STATE[1]))
                 digitalWrite(RELAY_PINS[1], RELAY_STATE[1]);
-                Serial.printf("Клик по Switch2! Новый статус: %d\n", RELAY_STATE[1]);
-            }
-            if (b.Switch(102, "Реле зоны 3", &RELAY_STATE[2]))
-            {
+            if (b.Switch(H(switch3), "Реле зоны 3", &RELAY_STATE[2]))
                 digitalWrite(RELAY_PINS[2], RELAY_STATE[2]);
-                Serial.printf("Клик по Switch3! Новый статус: %d\n", RELAY_STATE[2]);
-            }
-            if (b.Switch(103, "Реле 24v", &RELAY_STATE[3]))
-            {
+            if (b.Switch(H(switch4), "Реле 24v", &RELAY_STATE[3]))
                 digitalWrite(RELAY_PINS[3], RELAY_STATE[3]);
-                Serial.printf("Клик по Switch4! Новый статус: %d\n", RELAY_STATE[3]);
-            }
+
             b.Paragraph("  ВНИМАНИЕ❗", "При входе в это меню, выполняемая в данный момент программа прерывается!");
 
             // логгер
@@ -470,7 +451,7 @@ void updateStatus()
         snprintf(buf, sizeof(buf), "ПОЛИВ: Зона %d (%02d:%02d)", current_zone + 1, (allSeconds / 60) % 60, allSeconds % 60);
         status = buf;
         auto u = sett.updater();
-        u.update(kk::status_str, status.c_str());
+        u.update(H(Status), status.c_str());
     }
 }
 
@@ -481,7 +462,7 @@ void loop()
 
     EVERY_S(1)
     {
-        sett.updater().update(kk::time_str, sett.rtc.toString());
+        sett.updater().update(H(Time), sett.rtc.toString());
 
         Serial.println(sett.rtc.toString());
 
@@ -511,14 +492,14 @@ void loop()
         {
             // clang-format off
             sett.updater()
-                .updateColor(kk::button, sets::Colors::Green)
-                .updateText(kk::button, "Запустить полив сейчас");
+                .updateColor(H(Button), sets::Colors::Green)
+                .updateText(H(Button), "Запустить полив сейчас");
         }
         else
         {
             sett.updater()
-                .updateColor(kk::button, sets::Colors::Red)
-                .updateText(kk::button, "ОСТАНОВИТЬ ВСЁ");
+                .updateColor(H(Button), sets::Colors::Red)
+                .updateText(H(Button), "ОСТАНОВИТЬ ВСЁ");
             // clang-format on
         }
         updateHoldStatus();

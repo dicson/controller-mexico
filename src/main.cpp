@@ -198,8 +198,10 @@ void startWateringSequence()
 }
 void build(sets::Builder &b)
 {
-
-    b.Label(H(alert), alert_f);
+    if (rtc_error)
+        b.Label(H(alert), "RTC", alert_f, sets::Colors::Red);
+    else
+        b.Label(H(alert), "RTC", alert_f, sets::Colors::Green);
 
     b.Label(H(Time), "Текущее время", sett.rtc.toString());
 
@@ -404,18 +406,18 @@ void setup()
     if (!rtc.isOK())
     {
         Serial.println("Error: DS3231 RTC не найден!");
-        alert_f = "RTC не работает!!!";
+        alert_f = "Не работает!!!";
         rtc_error = true;
     }
     else
     {
         char buf[40];
-        sprintf(buf, "RTC в норме %d °C", rtc.getTempInt());
+        sprintf(buf, "В норме %d °C", rtc.getTempInt());
         alert_f = buf;
         if (rtc.isReset())
         {
             // был сброс питания RTC, время некорректное
-            alert_f = "RTC села батарейка!!!";
+            alert_f = "Села батарейка!!!";
             rtc_error = true;
         }
         sett.rtc.sync(rtc);

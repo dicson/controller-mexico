@@ -306,6 +306,7 @@ void build(sets::Builder &b)
             if (b.enterMenu())
             {
                 stopAction();
+                sett.updater().update(H(switch1), RELAY_STATE[0]).update(H(switch2), RELAY_STATE[1]).update(H(switch3), RELAY_STATE[2]).update(H(switch4), RELAY_STATE[3]);
                 // db.dump(Serial);
             }
 

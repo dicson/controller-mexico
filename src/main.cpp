@@ -70,12 +70,18 @@ void updateHoldStatus()
 {
     if (!watering_active)
     {
-        if (db[kk::z1_on].toBool() || db[kk::z2_on].toBool() || db[kk::z3_on].toBool())
-            status = "Ожидание расписания";
-        else
-            status = "Автополив выключен";
         auto u = sett.updater();
-        u.update(H(Status), status.c_str());
+        if (db[kk::z1_on].toBool() || db[kk::z2_on].toBool() || db[kk::z3_on].toBool())
+        {
+            status = "Ожидание расписания";
+            u.updateColor(H(Status), sets::Colors::Green);
+        }
+        else
+        {
+            status = "Автополив выключен";
+            u.updateColor(H(Status), sets::Colors::Red);
+        }
+        u.updateText(H(Status), status);
     }
 }
 
@@ -216,10 +222,15 @@ void build(sets::Builder &b)
     if (!watering_active)
     {
         if (db[kk::z1_on].toBool() || db[kk::z2_on].toBool() || db[kk::z3_on].toBool())
+        {
             status = "Ожидание расписания";
+            b.Label(H(Status), "Статус", status, sets::Colors::Green);
+        }
         else
+        {
             status = "Автополив выключен";
-        b.Label(H(Status), "Статус", status);
+            b.Label(H(Status), "Статус", status, sets::Colors::Red);
+        }
     }
     else
     {

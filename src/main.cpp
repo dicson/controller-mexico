@@ -62,8 +62,9 @@ enum kk : size_t
 };
 const size_t RELAY_KEYS[4] = {H(relay1), H(relay2), H(relay3), H(relay4)};
 static GTimer<millis> timer_focus(500, false, GTMode::Timeout);
-void updateStatus();
 sets::Logger logger(149 + 84);
+void updateStatus();
+void updateWidgets();
 
 void updateHoldStatus()
 {
@@ -94,14 +95,13 @@ void blinkRTCErrorLED()
             ledc_set_fade_time_and_start(LEDC_MODE, LEDC_CHANNEL, 0, 100, LEDC_FADE_NO_WAIT);
         }
     }
-    if (!rtc_error)
-     {
+    else
+    {
         EVERY_S(4.5)
         {
             ledc_set_fade_time_and_start(LEDC_MODE, LEDC_CHANNEL, 1000, 1500, LEDC_FADE_NO_WAIT);
             ledc_set_fade_time_and_start(LEDC_MODE, LEDC_CHANNEL, 0, 1500, LEDC_FADE_NO_WAIT);
         }
-
     }
 }
 
@@ -121,10 +121,7 @@ void stopAction()
     turnOffAllRelays();
     watering_active = false;
     current_zone = -1;
-    auto u = sett.updater();
-    u.updateColor(H(Button), sets::Colors::Green)
-        .updateText(H(Button), "Запустить полив сейчас");
-    updateHoldStatus();
+    updateWidgets();
 }
 
 // Функция перехода к следующей зоне в очереди
@@ -202,7 +199,7 @@ void startWateringSequence()
 void build(sets::Builder &b)
 {
 
-    b.Label(alert_f);
+    b.Label(H(alert), alert_f);
 
     b.Label(H(Time), "Текущее время", sett.rtc.toString());
 
@@ -271,14 +268,6 @@ void build(sets::Builder &b)
         b.endGroup();
     }
 
-    // if (b.beginMenu("Настройка времени зон"))
-    // {
-    //     b.Slider(kk::dur_1, "Время Зоны 1 (мин)", 0, 60, 1);
-    //     b.Slider(kk::dur_2, "Время Зоны 2 (мин)", 0, 60, 1);
-    //     b.Slider(kk::dur_3, "Время Зоны 3 (мин)", 0, 60, 1);
-    //     b.endMenu();
-    // }
-    // а это кнопка на вложенное меню. Далее нужно описать его содержимое
     if (b.beginMenu("⏰ Расписание полива"))
     {
         if (b.beginGroup("Дни полива"))
@@ -303,7 +292,6 @@ void build(sets::Builder &b)
         {
             if (b.enterMenu())
             {
-                Serial.println("Принудительная остановка всей очереди");
                 stopAction();
                 // db.dump(Serial);
             }
@@ -453,9 +441,7 @@ void checkSchedule()
     bool day_allowed = false;
 
     if (cur_day >= 1 && cur_day <= 7)
-    {
         day_allowed = db[day_keys[cur_day - 1]].toBool();
-    }
 
     if (day_allowed && cur_hour == start_hour && cur_min == start_min)
     {
@@ -489,6 +475,38 @@ void updateStatus()
     }
 }
 
+void updateWidgets()
+{
+    for (int i = 0; i < 3; i++)
+    {
+        sett.updater().update(RELAY_KEYS[i], RELAY_STATE[i]);
+    }
+    if (!watering_active)
+    {
+        // clang-format off
+        sett.updater()
+            .updateColor(H(Button), sets::Colors::Green)
+            .updateText(H(Button), "Запустить полив сейчас");
+    }
+    else
+    {
+        sett.updater()
+            .updateColor(H(Button), sets::Colors::Red)
+            .updateText(H(Button), "ОСТАНОВИТЬ ВСЁ");
+        // clang-format on
+    }
+
+    if (!rtc_error)
+    {
+        char buf[40];
+        sprintf(buf, "RTC в норме %d °C", rtc.getTempInt());
+        alert_f = buf;
+        sett.updater().updateText(H(alert), alert_f);
+    }
+
+    updateHoldStatus();
+}
+
 void loop()
 {
     sett.tick();
@@ -516,26 +534,5 @@ void loop()
     }
 
     if (timer_focus)
-    {
-        Serial.println("обновляем реле");
-        for (int i = 0; i < 3; i++)
-        {
-            sett.updater().update(RELAY_KEYS[i], RELAY_STATE[i]);
-        }
-        if (!watering_active)
-        {
-            // clang-format off
-            sett.updater()
-                .updateColor(H(Button), sets::Colors::Green)
-                .updateText(H(Button), "Запустить полив сейчас");
-        }
-        else
-        {
-            sett.updater()
-                .updateColor(H(Button), sets::Colors::Red)
-                .updateText(H(Button), "ОСТАНОВИТЬ ВСЁ");
-            // clang-format on
-        }
-        updateHoldStatus();
-    }
+        updateWidgets();
 }

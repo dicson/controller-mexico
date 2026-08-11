@@ -59,7 +59,7 @@ enum kk : size_t
     z2_on,
     z3_on,
     z4_on,
-    // Логи поливов (последние 14)
+    // Логи поливов (последние 15)
     log_0,
     log_1,
     log_2,
@@ -74,10 +74,11 @@ enum kk : size_t
     log_11,
     log_12,
     log_13,
+    log_14,
 };
 const size_t RELAY_KEYS[4] = {H(relay1), H(relay2), H(relay3), H(relay4)};
 static GTimer<millis> timer_focus(500, false, GTMode::Timeout);
-sets::Logger logger(400);
+sets::Logger logger(450);
 void updateStatus();
 void updateWidgets();
 
@@ -157,7 +158,7 @@ void switchRelay(int zone)
 void addLog(String entry)
 {
     // Shift logs: log_13 = log_12, ..., log_1 = log_0
-    for (int i = 13; i > 0; i--)
+    for (int i = 14; i > 0; i--)
     {
         db[kk::log_0 + i] = db[kk::log_0 + i - 1].toString();
     }
@@ -166,7 +167,7 @@ void addLog(String entry)
     
     // Update logger
     logger.clear();
-    for (int i = 0; i < 14; i++)
+    for (int i = 0; i < 15; i++)
     {
         String log_entry = db[kk::log_0 + i].toString();
         if (log_entry.length() > 0)
@@ -449,12 +450,12 @@ void setup()
     db.init(kk::z3_on, true);
 
     // Инициализация ключей логов
-    for (int i = 0; i < 14; i++)
+    for (int i = 0; i < 15; i++)
     {
         db.init(kk::log_0 + i, "");
     }
     // Загрузка логов в logger
-    for (int i = 0; i < 14; i++)
+    for (int i = 0; i < 15; i++)
     {
         String log_entry = db[kk::log_0 + i].toString();
         if (log_entry.length() > 0)

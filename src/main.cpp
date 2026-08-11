@@ -130,6 +130,14 @@ void stopAction()
     updateWidgets();
 }
 
+void switchRelay(int zone)
+{
+    digitalWrite(RELAY_PINS[zone], RELAY_STATE[zone]);
+    // 24v (RELAY_PINS[3]) включен, если активна любая из зон 0, 1 или 2
+    digitalWrite(RELAY_PINS[3], RELAY_STATE[0] || RELAY_STATE[1] || RELAY_STATE[2]);
+    sett.updater().update(RELAY_KEYS[zone], RELAY_STATE[zone]);
+}
+
 // Функция перехода к следующей зоне в очереди
 void goToNextZone()
 {
@@ -310,14 +318,12 @@ void build(sets::Builder &b)
                 // db.dump(Serial);
             }
 
-            if (b.Switch(H(switch1), "Реле зоны 1", &RELAY_STATE[0]))
-                digitalWrite(RELAY_PINS[0], RELAY_STATE[0]);
-            if (b.Switch(H(switch2), "Реле зоны 2", &RELAY_STATE[1]))
-                digitalWrite(RELAY_PINS[1], RELAY_STATE[1]);
-            if (b.Switch(H(switch3), "Реле зоны 3", &RELAY_STATE[2]))
-                digitalWrite(RELAY_PINS[2], RELAY_STATE[2]);
-            if (b.Switch(H(switch4), "Реле 24v", &RELAY_STATE[3]))
-                digitalWrite(RELAY_PINS[3], RELAY_STATE[3]);
+            if (b.Switch(H(switch1), "Зона 1", &RELAY_STATE[0]))
+                switchRelay(0);
+            if (b.Switch(H(switch2), "Зона 2", &RELAY_STATE[1]))
+                switchRelay(1);
+            if (b.Switch(H(switch3), "Зона 3", &RELAY_STATE[2]))
+                switchRelay(2);
 
             b.Paragraph("  ВНИМАНИЕ❗", "При входе в это меню, выполняемая в данный момент программа прерывается!");
 

@@ -59,10 +59,25 @@ enum kk : size_t
     z2_on,
     z3_on,
     z4_on,
+    // Логи поливов (последние 14)
+    log_0,
+    log_1,
+    log_2,
+    log_3,
+    log_4,
+    log_5,
+    log_6,
+    log_7,
+    log_8,
+    log_9,
+    log_10,
+    log_11,
+    log_12,
+    log_13,
 };
 const size_t RELAY_KEYS[4] = {H(relay1), H(relay2), H(relay3), H(relay4)};
 static GTimer<millis> timer_focus(500, false, GTMode::Timeout);
-sets::Logger logger(149 + 84);
+sets::Logger logger(400);
 void updateStatus();
 void updateWidgets();
 
@@ -138,6 +153,30 @@ void switchRelay(int zone)
     sett.updater().update(RELAY_KEYS[zone], RELAY_STATE[zone]);
 }
 
+// Функция добавления лога в БД
+void addLog(String entry)
+{
+    // Shift logs: log_13 = log_12, ..., log_1 = log_0
+    for (int i = 13; i > 0; i--)
+    {
+        db[kk::log_0 + i] = db[kk::log_0 + i - 1].toString();
+    }
+    // New log at log_0
+    db[kk::log_0] = entry;
+    
+    // Update logger
+    logger.clear();
+    for (int i = 0; i < 14; i++)
+    {
+        String log_entry = db[kk::log_0 + i].toString();
+        if (log_entry.length() > 0)
+        {
+            logger.println(log_entry);
+        }
+    }
+    sett.updater().update(H(log), logger);
+}
+
 // Функция перехода к следующей зоне в очереди
 void goToNextZone()
 {
@@ -198,8 +237,9 @@ void startWateringSequence()
         auto u = sett.updater();
         u.updateColor(H(Button), sets::Colors::Red)
             .updateText(H(Button), "ОСТАНОВИТЬ ВСЁ");
-        logger.println(sett.rtc.toString());
-        u.update(H(log), logger);
+            
+        // Добавляем лог при старте полива
+        addLog(sett.rtc.toString());
     }
     // Проверяем каждую зону: если тумблер включен, берем минуты из БД, если выключен — пишем 0 (пропуск)
     zone_durations[0] = db[kk::z1_on].toBool() ? db[kk::dur_1].toInt() : 0;
@@ -407,6 +447,21 @@ void setup()
     db.init(kk::z1_on, true);
     db.init(kk::z2_on, true);
     db.init(kk::z3_on, true);
+
+    // Инициализация ключей логов
+    for (int i = 0; i < 14; i++)
+    {
+        db.init(kk::log_0 + i, "");
+    }
+    // Загрузка логов в logger
+    for (int i = 0; i < 14; i++)
+    {
+        String log_entry = db[kk::log_0 + i].toString();
+        if (log_entry.length() > 0)
+        {
+            logger.println(log_entry);
+        }
+    }
 
     WiFi.mode(WIFI_AP);
     WiFi.softAP(ap_ssid, ap_pass);

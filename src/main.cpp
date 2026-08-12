@@ -77,8 +77,8 @@ enum kk : size_t
     log_14,
 };
 const size_t RELAY_KEYS[4] = {H(relay1), H(relay2), H(relay3), H(relay4)};
-static GTimer<millis> timer_focus(500, false, GTMode::Timeout);
-sets::Logger logger(450);
+static GTimer<millis> timer_focus(1500, false, GTMode::Timeout);
+sets::Logger logger(512);
 void updateStatus();
 void updateWidgets();
 
@@ -137,7 +137,22 @@ void turnOffAllRelays()
         sett.updater().update(RELAY_KEYS[i], RELAY_STATE[i]);
     }
 }
-
+void endTimeToLog()
+{
+    String entry = db[kk::log_0].toString() + " - " + sett.rtc.timeToString();
+    db[kk::log_0] = entry;
+    // Update logger
+    logger.clear();
+    for (int i = 0; i < 15; i++)
+    {
+        String log_entry = db[kk::log_0 + i].toString();
+        if (log_entry.length() > 0)
+        {
+            logger.println(log_entry);
+        }
+    }
+    sett.updater().update(H(log), logger);
+}
 void stopAction()
 {
     turnOffAllRelays();
@@ -164,7 +179,7 @@ void addLog(String entry)
     }
     // New log at log_0
     db[kk::log_0] = entry;
-    
+
     // Update logger
     logger.clear();
     for (int i = 0; i < 15; i++)
@@ -194,6 +209,7 @@ void goToNextZone()
         {
             Serial.println(">>> Сессия полива полностью завершена <<<");
             stopAction();
+            endTimeToLog();
             return;
         }
 
@@ -238,7 +254,7 @@ void startWateringSequence()
         auto u = sett.updater();
         u.updateColor(H(Button), sets::Colors::Red)
             .updateText(H(Button), "ОСТАНОВИТЬ ВСЁ");
-            
+
         // Добавляем лог при старте полива
         addLog(sett.rtc.toString());
     }
@@ -300,6 +316,7 @@ void build(sets::Builder &b)
         {
             Serial.println("Принудительная остановка всей очереди");
             stopAction();
+            endTimeToLog();
         }
     }
 
@@ -354,9 +371,13 @@ void build(sets::Builder &b)
         {
             if (b.enterMenu())
             {
-                stopAction();
-                sett.updater().update(H(switch1), RELAY_STATE[0]).update(H(switch2), RELAY_STATE[1]).update(H(switch3), RELAY_STATE[2]).update(H(switch4), RELAY_STATE[3]);
-                // db.dump(Serial);
+                if (watering_active)
+                {
+                    stopAction();
+                    sett.updater().update(H(switch1), RELAY_STATE[0]).update(H(switch2), RELAY_STATE[1]).update(H(switch3), RELAY_STATE[2]).update(H(switch4), RELAY_STATE[3]);
+                    endTimeToLog();
+                    // db.dump(Serial);
+                }
             }
 
             if (b.Switch(H(switch1), "Зона 1", &RELAY_STATE[0]))
@@ -584,6 +605,7 @@ void updateWidgets()
     }
 
     updateHoldStatus();
+    sett.updater().update(H(log), logger);
 }
 
 void loop()
@@ -608,7 +630,7 @@ void loop()
 
             if (elapsed >= limit)
                 goToNextZone();
-            
+
             // Обновление статуса полива только при фокусе
             if (sett.focused())
                 updateStatus();

@@ -545,9 +545,12 @@ void updateStatus()
         uint32_t allSeconds = passed / 1000;
         char buf[40];
         snprintf(buf, sizeof(buf), "ПОЛИВ: Зона %d (%02d:%02d)", current_zone + 1, (allSeconds / 60) % 60, allSeconds % 60);
-        status = buf;
-        auto u = sett.updater();
-        u.update(H(Status), status.c_str());
+        String new_status = buf;
+        if (new_status != status)
+        {
+            status = new_status;
+            sett.updater().updateText(H(Status), status);
+        }
     }
 }
 
@@ -590,9 +593,12 @@ void loop()
 
     EVERY_S(1)
     {
-        sett.updater().update(H(Time), sett.rtc.toString());
-
-        Serial.println(sett.rtc.toString());
+        // Обновление UI только если веб-интерфейс в фокусе
+        if (sett.focused())
+        {
+            sett.updater().update(H(Time), sett.rtc.toString());
+            Serial.println(sett.rtc.toString());
+        }
 
         // 1. Проверяем таймер текущей активной зоны
         if (watering_active && current_zone >= 0 && current_zone < 3)
@@ -602,7 +608,10 @@ void loop()
 
             if (elapsed >= limit)
                 goToNextZone();
-            updateStatus();
+            
+            // Обновление статуса полива только при фокусе
+            if (sett.focused())
+                updateStatus();
         }
         // 2. Проверяем наступление времени старта по расписанию
         if (!watering_active)

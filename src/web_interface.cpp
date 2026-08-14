@@ -226,7 +226,7 @@ void updateStatus()
 
 /**
  * @brief Добавляет новую запись в журнал поливов в базе данных.
- * @param entry Текст записи лога.
+ * @param entry Текст записи журнала.
  */
 void addLog(String entry)
 {

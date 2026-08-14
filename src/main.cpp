@@ -52,9 +52,7 @@ void goToNextZone()
 
         // Проверяем, установлена ли длительность для зоны
         if (zone_durations[current_zone] > 0)
-        {
             found_next = true; // Нашли следующую активную зону
-        }
         else
         {
             Serial.print("Зона ");
@@ -63,11 +61,8 @@ void goToNextZone()
         }
     }
 
-    // Включаем реле текущей зоны
-    relayOn();
-
-    // Выбираем соответствующий ключ из перечисления
-    sett.updater().update(RELAY_KEYS[current_zone], RELAY_STATE[current_zone]);
+    relayOn();                                                                  // Включаем реле текущей зоны
+    sett.updater().update(RELAY_KEYS[current_zone], RELAY_STATE[current_zone]); // обновляем светодиод
 
     zone_start_millis = millis();
     updateStatus();
@@ -91,9 +86,10 @@ void startWateringSequence()
         u.updateColor(H(Button), sets::Colors::Red)
             .updateText(H(Button), "ОСТАНОВИТЬ ВСЁ");
 
-        // Добавляем лог при старте полива
-        addLog(sett.rtc.toString());
+        addLog(sett.rtc.toString()); // Добавляем лог при старте полива
     }
+    else
+        return;
     // Проверяем каждую зону: если тумблер включен, берем минуты из БД, если выключен — пишем 0 (пропуск)
     zone_durations[0] = db[kk::z1_on].toBool() ? db[kk::dur_1].toInt() : 0;
     zone_durations[1] = db[kk::z2_on].toBool() ? db[kk::dur_2].toInt() : 0;
@@ -151,12 +147,12 @@ void setup()
     db.init(kk::z2_on, true);
     db.init(kk::z3_on, true);
 
-    // Инициализация ключей логов
+    // Инициализация записей журнала
     for (int i = 0; i < 15; i++)
     {
         db.init(kk::log_0 + i, "");
     }
-    // Загрузка логов в logger
+    // Загрузка записей в logger
     for (int i = 0; i < 15; i++)
     {
         String log_entry = db[kk::log_0 + i].toString();

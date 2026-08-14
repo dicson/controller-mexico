@@ -25,7 +25,7 @@ int current_zone = -1;
 GTimer<millis> timer_focus(1500, false, GTMode::Timeout);
 sets::Logger logger(512);
 
-const size_t RELAY_KEYS[4] = {H(relay1), H(relay2), H(relay3), H(relay4)};
+const size_t LED_NAMES[4] = {H(relay1), H(relay2), H(relay3), H(relay4)};
 
 /**
  * @brief Функция перехода к следующей зоне в очереди.
@@ -62,7 +62,7 @@ void goToNextZone()
     }
 
     relayOn();                                                                  // Включаем реле текущей зоны
-    sett.updater().update(RELAY_KEYS[current_zone], RELAY_STATE[current_zone]); // обновляем светодиод
+    sett.updater().update(LED_NAMES[current_zone], RELAY_STATE[current_zone]); // обновляем светодиод
 
     zone_start_millis = millis();
     updateStatus();

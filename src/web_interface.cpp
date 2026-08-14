@@ -151,7 +151,7 @@ void updateWidgets()
 {
     for (int i = 0; i < 3; i++)
     {
-        sett.updater().update(RELAY_KEYS[i], RELAY_STATE[i]);
+        sett.updater().update(LED_NAMES[i], RELAY_STATE[i]);
     }
     if (!watering_active)
     {

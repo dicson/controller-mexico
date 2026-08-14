@@ -23,7 +23,7 @@ void turnOffAllRelays()
     {
         digitalWrite(RELAY_PINS[i], LOW);
         RELAY_STATE[i] = false;
-        sett.updater().update(RELAY_KEYS[i], RELAY_STATE[i]);
+        sett.updater().update(LED_NAMES[i], RELAY_STATE[i]);
     }
 }
 
@@ -47,7 +47,7 @@ void switchRelay(int zone)
     digitalWrite(RELAY_PINS[zone], RELAY_STATE[zone]);
     // 24v (RELAY_PINS[3]) включен, если активна любая из зон 0, 1 или 2
     digitalWrite(RELAY_PINS[3], RELAY_STATE[0] || RELAY_STATE[1] || RELAY_STATE[2]);
-    sett.updater().update(RELAY_KEYS[zone], RELAY_STATE[zone]);
+    sett.updater().update(LED_NAMES[zone], RELAY_STATE[zone]);
 }
 
 /**

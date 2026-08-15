@@ -143,3 +143,16 @@ void rtcSetup()
         sett.rtc.onSync(onSyncCallback);
     }
 }
+
+/**
+ * @brief Выводит подробную статистику использования Heap-памяти в Serial.
+ */
+void printMemoryUsage()
+{
+    Serial.println(F("\n--- [Статистика памяти] ---"));
+    Serial.printf(F("Общий Heap: %u байт\n"), ESP.getHeapSize());
+    Serial.printf(F("Свободный Heap: %u байт\n"), ESP.getFreeHeap());
+    Serial.printf(F("Минимальный свободный Heap: %u байт\n"), ESP.getMinFreeHeap());
+    Serial.printf(F("Максимальный доступный блок: %u байт\n"), ESP.getMaxAllocHeap());
+    Serial.println(F("---------------------------\n"));
+}

@@ -55,23 +55,17 @@ void goToNextZone()
             found_next = true; // Нашли следующую активную зону
         else
         {
-            Serial.print(F("Зона "));
-            Serial.print(current_zone + 1);
-            Serial.println(F(" пропущена (0 мин)."));
+            Serial.printf(F("Зона %d пропущена (0 мин).\n"), current_zone + 1);
         }
     }
 
-    relayOn();                                                                  // Включаем реле текущей зоны
+    relayOn();                                                                 // Включаем реле текущей зоны
     sett.updater().update(LED_NAMES[current_zone], RELAY_STATE[current_zone]); // обновляем светодиод
 
     zone_start_millis = millis();
     updateStatus();
 
-    Serial.print(F(">>> Включена Зона "));
-    Serial.print(current_zone + 1);
-    Serial.print(F(" на "));
-    Serial.print(zone_durations[current_zone]);
-    Serial.println(F(" мин."));
+    Serial.printf(F(">>> Включена Зона %d на %d мин.\n"), current_zone + 1, zone_durations[current_zone]);
 }
 
 /**
@@ -247,6 +241,7 @@ void loop()
         // 2. Проверяем наступление времени старта по расписанию
         if (!watering_active)
             checkSchedule();
+        // printMemoryUsage();
     }
 
     if (timer_focus)

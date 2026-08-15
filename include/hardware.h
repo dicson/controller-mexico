@@ -12,5 +12,6 @@ void blinkRTCErrorLED();
 void pinLedSetup();
 void relayOn();
 void rtcSetup();
+void printMemoryUsage();
 
 #endif // HARDWARE_H

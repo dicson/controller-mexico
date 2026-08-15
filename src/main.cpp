@@ -178,33 +178,28 @@ void setup()
  */
 void checkSchedule()
 {
-    int cur_hour = sett.rtc.hour();
-    int cur_min = sett.rtc.minute();
-    int cur_day = sett.rtc.weekDay();
-    int start_hour = db[kk::tm_hour].toInt();
-    int start_min = db[kk::tm_min].toInt();
-    // Массив ключей согласно порядку в enum kk
-    static const kk day_keys[] = {kk::d_1, kk::d_2, kk::d_3, kk::d_4, kk::d_5, kk::d_6, kk::d_7};
-    // Безопасный доступ
-    bool day_allowed = false;
-
-    if (cur_day >= 1 && cur_day <= 7)
-        day_allowed = db[day_keys[cur_day - 1]].toBool();
-
-    if (day_allowed && cur_hour == start_hour && cur_min == start_min)
+    // Проверка наступления времени старта
+    if (sett.rtc.hour() != db[kk::tm_hour].toInt() || sett.rtc.minute() != db[kk::tm_min].toInt())
     {
-        if (!already_watered)
-        {
-            Serial.println(F("Время расписания пришло. Запуск поочередного полива."));
-            already_watered = true;
-
-            // Запуск автомата (он внутри сам проверит чекбоксы)
-            startWateringSequence();
-        }
+        already_watered = false;
+        return;
     }
 
-    if (cur_min != start_min)
-        already_watered = false;
+    if (already_watered)
+        return;
+
+    // Проверка дня недели (1-7)
+    int cur_day = sett.rtc.weekDay();
+    if (cur_day < 1 || cur_day > 7)
+        return;
+
+    static const kk day_keys[] = {kk::d_1, kk::d_2, kk::d_3, kk::d_4, kk::d_5, kk::d_6, kk::d_7};
+    if (db[day_keys[cur_day - 1]].toBool())
+    {
+        Serial.println(F("Время расписания пришло. Запуск поочередного полива."));
+        already_watered = true;
+        startWateringSequence();
+    }
 }
 
 /**
@@ -222,7 +217,7 @@ void loop()
         if (sett.focused())
         {
             sett.updater().update(H(Time), sett.rtc.toString());
-            Serial.println(sett.rtc.toString());
+            // Serial.println(sett.rtc.toString());
         }
 
         // 1. Проверяем таймер текущей активной зоны
@@ -235,8 +230,7 @@ void loop()
                 goToNextZone();
 
             // Обновление статуса полива только при фокусе
-            if (sett.focused())
-                updateStatus();
+            updateStatus();
         }
         // 2. Проверяем наступление времени старта по расписанию
         if (!watering_active)

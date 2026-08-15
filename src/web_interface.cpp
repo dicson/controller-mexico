@@ -208,6 +208,8 @@ void updateHoldStatus()
  */
 void updateStatus()
 {
+    if (!sett.focused())
+        return;
     uint32_t elapsed = millis() - zone_start_millis;
     uint32_t limit = (uint32_t)zone_durations[current_zone] * 60 * 1000;
     if (limit > elapsed)

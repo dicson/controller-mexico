@@ -11,6 +11,7 @@ void updateWidgets();
 void updateStatus();
 void addLog(String entry);
 void endTimeToLog();
+void updateLogger();
 
 extern void startWateringSequence();
 

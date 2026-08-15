@@ -44,7 +44,7 @@ void goToNextZone()
         // Если прошли все 3 зоны — завершаем сессию
         if (current_zone >= 3)
         {
-            Serial.println(">>> Сессия полива полностью завершена <<<");
+            Serial.println(F(">>> Сессия полива полностью завершена <<<"));
             stopAction();
             endTimeToLog();
             return;
@@ -55,9 +55,9 @@ void goToNextZone()
             found_next = true; // Нашли следующую активную зону
         else
         {
-            Serial.print("Зона ");
+            Serial.print(F("Зона "));
             Serial.print(current_zone + 1);
-            Serial.println(" пропущена (0 мин).");
+            Serial.println(F(" пропущена (0 мин)."));
         }
     }
 
@@ -67,11 +67,11 @@ void goToNextZone()
     zone_start_millis = millis();
     updateStatus();
 
-    Serial.print(">>> Включена Зона ");
+    Serial.print(F(">>> Включена Зона "));
     Serial.print(current_zone + 1);
-    Serial.print(" на ");
+    Serial.print(F(" на "));
     Serial.print(zone_durations[current_zone]);
-    Serial.println(" мин.");
+    Serial.println(F(" мин."));
 }
 
 /**
@@ -84,7 +84,7 @@ void startWateringSequence()
     {
         auto u = sett.updater();
         u.updateColor(H(Button), sets::Colors::Red)
-            .updateText(H(Button), "ОСТАНОВИТЬ ВСЁ");
+            .updateText(H(Button), F("ОСТАНОВИТЬ ВСЁ"));
 
         addLog(sett.rtc.toString()); // Добавляем лог при старте полива
     }
@@ -201,7 +201,7 @@ void checkSchedule()
     {
         if (!already_watered)
         {
-            Serial.println("Время расписания пришло. Запуск поочередного полива.");
+            Serial.println(F("Время расписания пришло. Запуск поочередного полива."));
             already_watered = true;
 
             // Запуск автомата (он внутри сам проверит чекбоксы)

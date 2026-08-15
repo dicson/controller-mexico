@@ -124,7 +124,7 @@ void rtcSetup()
     rtc.begin();
     if (!rtc.isOK())
     {
-        Serial.println("Error: DS3231 RTC не найден!");
+        Serial.println(F("Error: DS3231 RTC не найден!"));
         alert_f = "Не работает!!!";
         rtc_error = true;
     }

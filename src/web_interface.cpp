@@ -115,6 +115,7 @@ void build(sets::Builder &b)
                     sett.updater().update(H(switch1), RELAY_STATE[0]).update(H(switch2), RELAY_STATE[1]).update(H(switch3), RELAY_STATE[2]).update(H(switch4), RELAY_STATE[3]);
                     endTimeToLog();
                 }
+                updateLogger();
             }
 
             if (b.Switch(H(switch1), "Зона 1", &RELAY_STATE[0]))
@@ -158,13 +159,13 @@ void updateWidgets()
         // clang-format off
         sett.updater()
             .updateColor(H(Button), sets::Colors::Green)
-            .updateText(H(Button), "Запустить полив сейчас");
+            .updateText(H(Button), F("Запустить полив сейчас"));
     }
     else
     {
         sett.updater()
             .updateColor(H(Button), sets::Colors::Red)
-            .updateText(H(Button), "ОСТАНОВИТЬ ВСЁ");
+            .updateText(H(Button), F("ОСТАНОВИТЬ ВСЁ"));
         // clang-format on
     }
 
@@ -177,7 +178,7 @@ void updateWidgets()
     }
 
     updateHoldStatus();
-    sett.updater().update(H(log), logger);
+    updateLogger();
 }
 
 /**
@@ -225,20 +226,10 @@ void updateStatus()
 }
 
 /**
- * @brief Добавляет новую запись в журнал поливов в базе данных.
- * @param entry Текст записи журнала.
+ * @brief Обновляет данные журнала на веб-интерфейсе, считывая записи из базы данных.
  */
-void addLog(String entry)
+void updateLogger()
 {
-    // Shift logs: log_13 = log_12, ..., log_1 = log_0
-    for (int i = 14; i > 0; i--)
-    {
-        db[kk::log_0 + i] = db[kk::log_0 + i - 1].toString();
-    }
-    // New log at log_0
-    db[kk::log_0] = entry;
-
-    // Update logger
     logger.clear();
     for (int i = 0; i < 15; i++)
     {
@@ -252,21 +243,28 @@ void addLog(String entry)
 }
 
 /**
+ * @brief Добавляет новую запись в журнал поливов в базе данных.
+ * @param entry Текст записи журнала.
+ */
+void addLog(String entry)
+{
+    // Shift logs: log_13 = log_12, ..., log_1 = log_0
+    for (int i = 14; i > 0; i--)
+    {
+        db[kk::log_0 + i] = db[kk::log_0 + i - 1].toString();
+    }
+    // New log at log_0
+    db[kk::log_0] = entry;
+
+    updateLogger();
+}
+
+/**
  * @brief Добавляет время окончания полива в последнюю запись журнала.
  */
 void endTimeToLog()
 {
     String entry = db[kk::log_0].toString() + " - " + sett.rtc.timeToString();
     db[kk::log_0] = entry;
-    // Update logger
-    logger.clear();
-    for (int i = 0; i < 15; i++)
-    {
-        String log_entry = db[kk::log_0 + i].toString();
-        if (log_entry.length() > 0)
-        {
-            logger.println(log_entry);
-        }
-    }
-    sett.updater().update(H(log), logger);
+    updateLogger();
 }

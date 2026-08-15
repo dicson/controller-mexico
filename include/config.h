@@ -16,7 +16,7 @@
 #define LEDC_FREQUENCY 5000               
 
 static const char *ap_ssid = "controller";
-static const char *ap_pass = "11111111";
+static const char *ap_pass = "80100000";
 
 const uint8_t RELAY_PINS[4] = {32, 33, 25, 26};
 

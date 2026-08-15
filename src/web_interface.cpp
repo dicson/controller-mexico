@@ -150,6 +150,8 @@ void onSyncCallback(uint32_t unix_time)
  */
 void updateWidgets()
 {
+    if (!sett.focused())
+        return;
     for (int i = 0; i < 3; i++)
     {
         sett.updater().update(LED_NAMES[i], RELAY_STATE[i]);

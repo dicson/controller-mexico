@@ -29,5 +29,6 @@ extern int current_zone;
 void updateStatus();
 void updateWidgets();
 void updateHoldStatus();
+void dbSetup();
 
 #endif // GLOBALS_H

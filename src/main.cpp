@@ -88,7 +88,7 @@ void setup()
     pinLedSetup();
 
     if (!LittleFS.begin(true))
-        Serial.println("LittleFS error");
+        Serial.println(F("LittleFS error"));
     // настройки вебморды
     sett.config.requestTout = 3000;
     sett.config.sliderTout = 500;
@@ -109,7 +109,7 @@ void setup()
     sett.onBuild(build);
     sett.setVersion(VERSION);
     // установить инфо о проекте (отображается на вкладке настроек и файлов)
-    sett.setProjectInfo("Контроллер полива на дачу", "https://github.com/dicson/controller-mexico");
+    sett.setProjectInfo(F("Контроллер полива на дачу"), F("https://github.com/dicson/controller-mexico"));
     sett.onFocusChange(onFocusChange);
 }
 

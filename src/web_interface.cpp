@@ -9,17 +9,17 @@
 void build(sets::Builder &b)
 {
     if (rtc_error)
-        b.Label(H(alert), "RTC", alert_f, sets::Colors::Red);
+        b.Label(H(alert), F("RTC"), alert_f, sets::Colors::Red);
     else
-        b.Label(H(alert), "RTC", alert_f, sets::Colors::Green);
+        b.Label(H(alert), F("RTC"), alert_f, sets::Colors::Green);
 
-    b.Label(H(Time), "Текущее время", sett.rtc.toString());
+    b.Label(H(Time), F("Текущее время"), sett.rtc.toString());
 
-    if (b.beginRow("Состояние реле", sets::DivType::Block))
+    if (b.beginRow(F("Состояние реле"), sets::DivType::Block))
     {
-        b.LED(H(relay1), "реле 1", RELAY_STATE[0]);
-        b.LED(H(relay2), "реле 2", RELAY_STATE[1]);
-        b.LED(H(relay3), "реле 3", RELAY_STATE[2]);
+        b.LED(H(relay1), F("реле 1"), RELAY_STATE[0]);
+        b.LED(H(relay2), F("реле 2"), RELAY_STATE[1]);
+        b.LED(H(relay3), F("реле 3"), RELAY_STATE[2]);
         b.endRow();
     }
 
@@ -27,85 +27,85 @@ void build(sets::Builder &b)
     {
         if (db[kk::z1_on].toBool() || db[kk::z2_on].toBool() || db[kk::z3_on].toBool())
         {
-            status = "Ожидание расписания";
-            b.Label(H(Status), "Статус", status, sets::Colors::Green);
+            status = F("Ожидание расписания");
+            b.Label(H(Status), F("Статус"), status, sets::Colors::Green);
         }
         else
         {
-            status = "Автополив выключен";
-            b.Label(H(Status), "Статус", status, sets::Colors::Red);
+            status = F("Автополив выключен");
+            b.Label(H(Status), F("Статус"), status, sets::Colors::Red);
         }
     }
     else
     {
-        status = "ПОЛИВ: Зона " + String(current_zone + 1);
-        b.Label(H(Status), "Статус", status);
+        status = F("ПОЛИВ: Зона ") + String(current_zone + 1);
+        b.Label(H(Status), F("Статус"), status);
     }
 
     // БЛОК РУЧНОГО ЗАПУСКА ВСЕЙ ЦЕПОЧКИ
     if (!watering_active)
     {
-        if (b.Button(H(Button), "Запустить полив сейчас", sets::Colors::Green))
+        if (b.Button(H(Button), F("Запустить полив сейчас"), sets::Colors::Green))
             startWateringSequence();
     }
     else
     {
-        if (b.Button(H(Button), "ОСТАНОВИТЬ ВСЁ", sets::Colors::Red))
+        if (b.Button(H(Button), F("ОСТАНОВИТЬ ВСЁ"), sets::Colors::Red))
         {
-            Serial.println("Принудительная остановка всей очереди");
+            Serial.println(F("Принудительная остановка всей очереди"));
             stopAction();
             endTimeToLog();
         }
     }
 
     // НАСТРОЙКИ ЗОН (Выключатель + Ползунок рядом)
-    if (b.beginGroup("Настройка Зон Полива"))
+    if (b.beginGroup(F("Настройка Зон Полива")))
     {
-        if (b.beginRow("🌱 Зона 1", sets::DivType::Default))
+        if (b.beginRow(F("🌱 Зона 1"), sets::DivType::Default))
         {
-            if (b.Switch(kk::z1_on, "Поливать"))
+            if (b.Switch(kk::z1_on, F("Поливать")))
                 updateHoldStatus();
-            b.Spinner(kk::dur_1, "(минут)", 0, 60, 1);
+            b.Spinner(kk::dur_1, F("(минут)"), 0, 60, 1);
             b.endRow();
         }
-        if (b.beginRow("🌱 Зона 2", sets::DivType::Block))
+        if (b.beginRow(F("🌱 Зона 2"), sets::DivType::Block))
         {
-            if (b.Switch(kk::z2_on, "Поливать"))
+            if (b.Switch(kk::z2_on, F("Поливать")))
                 updateHoldStatus();
-            b.Spinner(kk::dur_2, "(минут)", 0, 60, 1);
+            b.Spinner(kk::dur_2, F("(минут)"), 0, 60, 1);
             b.endRow();
         }
-        if (b.beginRow("🌱 Зона 3", sets::DivType::Block))
+        if (b.beginRow(F("🌱 Зона 3"), sets::DivType::Block))
         {
-            if (b.Switch(kk::z3_on, "Поливать"))
+            if (b.Switch(kk::z3_on, F("Поливать")))
                 updateHoldStatus();
-            b.Spinner(kk::dur_3, "(минут)", 0, 60, 1);
+            b.Spinner(kk::dur_3, F("(минут)"), 0, 60, 1);
             b.endRow();
         }
         b.endGroup();
     }
 
-    if (b.beginMenu("⏰ Расписание полива"))
+    if (b.beginMenu(F("⏰ Расписание полива")))
     {
-        if (b.beginGroup("Дни полива"))
+        if (b.beginGroup(F("Дни полива")))
         {
-            b.Switch(kk::d_1, "Понедельник");
-            b.Switch(kk::d_2, "Вторник");
-            b.Switch(kk::d_3, "Среда");
-            b.Switch(kk::d_4, "Четверг");
-            b.Switch(kk::d_5, "Пятница");
-            b.Switch(kk::d_6, "Суббота");
-            b.Switch(kk::d_7, "Воскресенье");
+            b.Switch(kk::d_1, F("Понедельник"));
+            b.Switch(kk::d_2, F("Вторник"));
+            b.Switch(kk::d_3, F("Среда"));
+            b.Switch(kk::d_4, F("Четверг"));
+            b.Switch(kk::d_5, F("Пятница"));
+            b.Switch(kk::d_6, F("Суббота"));
+            b.Switch(kk::d_7, F("Воскресенье"));
             b.endGroup();
         }
 
-        if (b.beginGroup("Время старта полива"))
+        if (b.beginGroup(F("Время старта полива")))
         {
-            b.Slider(kk::tm_hour, "Час старта", 0, 23, 1);
-            b.Slider(kk::tm_min, "Минута старта", 0, 59, 1);
+            b.Slider(kk::tm_hour, F("Час старта"), 0, 23, 1);
+            b.Slider(kk::tm_min, F("Минута старта"), 0, 59, 1);
             b.endGroup();
         }
-        if (b.beginMenu("Ручное управление"))
+        if (b.beginMenu(F("Ручное управление")))
         {
             if (b.enterMenu())
             {
@@ -118,17 +118,17 @@ void build(sets::Builder &b)
                 updateLogger();
             }
 
-            if (b.Switch(H(switch1), "Зона 1", &RELAY_STATE[0]))
+            if (b.Switch(H(switch1), F("Зона 1"), &RELAY_STATE[0]))
                 switchRelay(0);
-            if (b.Switch(H(switch2), "Зона 2", &RELAY_STATE[1]))
+            if (b.Switch(H(switch2), F("Зона 2"), &RELAY_STATE[1]))
                 switchRelay(1);
-            if (b.Switch(H(switch3), "Зона 3", &RELAY_STATE[2]))
+            if (b.Switch(H(switch3), F("Зона 3"), &RELAY_STATE[2]))
                 switchRelay(2);
 
-            b.Paragraph("  ВНИМАНИЕ❗", "При входе в это меню, выполняемая в данный момент программа прерывается!");
+            b.Paragraph(F("  ВНИМАНИЕ❗"), F("При входе в это меню, выполняемая в данный момент программа прерывается!"));
 
             // логгер
-            b.Log(H(log), logger, "Журнал запусков полива");
+            b.Log(H(log), logger, F("Журнал запусков полива"));
 
             b.endMenu(); // Ручное управление
         }

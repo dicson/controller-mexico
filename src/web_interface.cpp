@@ -38,7 +38,8 @@ void build(sets::Builder &b)
     }
     else
     {
-        status = F("ПОЛИВ: Зона ") + String(current_zone + 1);
+        status = String(F("ПОЛИВ: Зона "));
+        status += (current_zone + 1);
         b.Label(H(Status), F("Статус"), status);
     }
 

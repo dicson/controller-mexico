@@ -109,7 +109,7 @@ void setup()
     sett.onBuild(build);
     sett.setVersion(VERSION);
     // установить инфо о проекте (отображается на вкладке настроек и файлов)
-    sett.setProjectInfo(F("Контроллер полива на дачу"), F("https://github.com/dicson/controller-mexico"));
+    sett.setProjectInfo("Контроллер полива на дачу", "https://github.com/dicson/controller-mexico");
     sett.onFocusChange(onFocusChange);
 }
 

@@ -18,7 +18,7 @@
 static const char *ap_ssid = "controller";
 static const char *ap_pass = "80100000";
 
-const uint8_t RELAY_PINS[4] = {32, 33, 25, 26};
+const uint8_t RELAY_PINS[4] = { 33, 25, 26, 32}; // 4 1 2 3
 
 enum kk : size_t
 {

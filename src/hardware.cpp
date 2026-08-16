@@ -154,5 +154,8 @@ void printMemoryUsage()
     Serial.printf(F("Свободный Heap: %u байт\n"), ESP.getFreeHeap());
     Serial.printf(F("Минимальный свободный Heap: %u байт\n"), ESP.getMinFreeHeap());
     Serial.printf(F("Максимальный доступный блок: %u байт\n"), ESP.getMaxAllocHeap());
-    Serial.println(F("---------------------------\n"));
+    Serial.println(F("---------------------------"));
+    // Считываем температуру в градусах Цельсия
+    float temp_celsius = temperatureRead();
+    Serial.printf(F("Температура чипа: %.2f °C\n"), temp_celsius);
 }

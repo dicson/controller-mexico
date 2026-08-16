@@ -131,6 +131,27 @@ void build(sets::Builder &b)
             // логгер
             b.Log(H(log), logger, F("Журнал запусков полива"));
 
+            if (b.beginMenu(F("Системная информация")))
+            {
+                if (b.enterMenu())
+                {
+                    logger_sys.clear();
+                    logger_sys.println(getSystemInfo());
+                    sett.updater().update(H(log_sys), logger_sys);
+                }
+                // логгер
+                b.Log(H(log_sys), logger_sys, F("Системная информация"));
+                b.Confirm(H(Confirm));
+                if (b.Button(H(update), F("Обновить"), sets::Colors::Green))
+                {
+                    logger_sys.clear();
+                    logger_sys.println(getSystemInfo());
+                    sett.updater().update(H(log_sys), logger_sys);
+                }
+            }
+
+            b.endMenu(); // Системная информация
+
             b.endMenu(); // Ручное управление
         }
         b.endMenu(); // Расписание полива

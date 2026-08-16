@@ -9,6 +9,7 @@ GyverDS3231 rtc;
 SettingsGyverWS sett("Контроллер полива", &db);
 GTimer<millis> timer_focus(1500, false, GTMode::Timeout);
 sets::Logger logger(512);
+sets::Logger logger_sys(1024);
 const size_t LED_NAMES[4] = {H(relay1), H(relay2), H(relay3), H(relay4)};
 
 // Глобальные переменные состояния

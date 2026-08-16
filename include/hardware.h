@@ -13,5 +13,6 @@ void pinLedSetup();
 void relayOn();
 void rtcSetup();
 void printMemoryUsage();
+String getSystemInfo();
 
 #endif // HARDWARE_H

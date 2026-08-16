@@ -12,6 +12,7 @@ extern GyverDS3231 rtc;
 extern SettingsGyverWS sett;
 extern GTimer<millis> timer_focus;
 extern sets::Logger logger;
+extern sets::Logger logger_sys;
 extern const size_t LED_NAMES[4];
 
 // Глобальные переменные состояния

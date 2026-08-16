@@ -3,6 +3,10 @@
 #include "config.h"
 #include "web_interface.h"
 
+#include <WiFi.h>
+#include "esp_system.h"
+#include "esp_chip_info.h"
+#include "esp_flash.h"
 /**
  * @brief Включает реле текущей зоны и общее реле питания.
  */
@@ -144,18 +148,82 @@ void rtcSetup()
     }
 }
 
+// Функция конвертации причины перезагрузки в понятный текст
+const __FlashStringHelper *getResetReasonText(esp_reset_reason_t reason)
+{
+    switch (reason)
+    {
+    case ESP_RST_POWERON:
+        return F("Power-on (Включение питания)");
+    case ESP_RST_EXT:
+        return F("External Pin (Сброс кнопкой/пином)");
+    case ESP_RST_SW:
+        return F("Software Reset (Программный перезапуск)");
+    case ESP_RST_PANIC:
+        return F("Exception/Panic (Сбой ядра/краш)");
+    case ESP_RST_INT_WDT:
+        return F("Interrupt Watchdog");
+    case ESP_RST_TASK_WDT:
+        return F("Task Watchdog");
+    case ESP_RST_BROWNOUT:
+        return F("Brownout (Просадка напряжения питания)");
+    case ESP_RST_SDIO:
+        return F("SDIO Reset");
+    default:
+        return F("Неизвестно");
+    }
+}
+
+/**
+ * @brief Собирает подробную статистику системы в строку (одна колонка, на русском).
+ */
+String getSystemInfo()
+{
+    String info;
+    info.reserve(1024);
+
+    info += String(F("\n--- [ Системная информация ] ---\n"));
+
+    // Память
+    info += String(F("ОЗУ Всего  : ")) + String(ESP.getHeapSize()) + String(F(" байт\n"));
+    info += String(F("ОЗУ Свобод.: ")) + String(ESP.getFreeHeap()) + String(F(" байт\n"));
+    info += String(F("ОЗУ Мин    : ")) + String(ESP.getMinFreeHeap()) + String(F(" байт\n"));
+    info += String(F("Макс. блок : ")) + String(ESP.getMaxAllocHeap()) + String(F(" байт\n"));
+    
+    // Температура
+    info += String(F("Темп. чипа : ")) + String(temperatureRead(), 2) + String(F(" °C\n"));
+
+    // Чип
+    esp_chip_info_t chip_info;
+    esp_chip_info(&chip_info);
+    info += String(F("Чип        : ")) + String(ESP.getChipModel()) + String(F(" (версия v")) + String(chip_info.revision) + String(F(")\n"));
+    info += String(F("Ядер       : ")) + String(chip_info.cores) + String(F("\n"));
+
+    // Сеть / Флеш
+    uint64_t mac = ESP.getEfuseMac();
+    char mac_buf[16];
+    snprintf(mac_buf, sizeof(mac_buf), "%04X%08X", (uint16_t)(mac >> 32), (uint32_t)mac);
+    info += String(F("MAC UID    : ")) + String(mac_buf) + String(F("\n"));
+    
+    uint32_t flash_size = 0;
+    esp_flash_get_size(NULL, &flash_size);
+    info += String(F("Flash      : ")) + String(flash_size / (1024 * 1024)) + String(F(" МБ\n"));
+    info += String(F("Flash Скор : ")) + String(ESP.getFlashChipSpeed() / 1000000) + String(F(" МГц\n"));
+
+    // CPU / Сброс
+    info += String(F("Частота CPU: ")) + String(getCpuFrequencyMhz()) + String(F(" МГц\n"));
+    info += String(F("Частота APB: ")) + String(getApbFrequency() / 1000000) + String(F(" МГц\n"));
+    info += String(F("Сброс      : ")) + String(getResetReasonText(esp_reset_reason())) + String(F("\n"));
+    info += String(F("Работа     : ")) + String(millis() / 1000) + String(F(" сек\n"));
+
+    info += String(F("================================"));
+    return info;
+}
+
 /**
  * @brief Выводит подробную статистику использования Heap-памяти в Serial.
  */
 void printMemoryUsage()
 {
-    Serial.println(F("\n--- [Статистика памяти] ---"));
-    Serial.printf(F("Общий Heap: %u байт\n"), ESP.getHeapSize());
-    Serial.printf(F("Свободный Heap: %u байт\n"), ESP.getFreeHeap());
-    Serial.printf(F("Минимальный свободный Heap: %u байт\n"), ESP.getMinFreeHeap());
-    Serial.printf(F("Максимальный доступный блок: %u байт\n"), ESP.getMaxAllocHeap());
-    Serial.println(F("---------------------------"));
-    // Считываем температуру в градусах Цельсия
-    float temp_celsius = temperatureRead();
-    Serial.printf(F("Температура чипа: %.2f °C\n"), temp_celsius);
+    Serial.println(getSystemInfo());
 }

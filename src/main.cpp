@@ -156,10 +156,7 @@ void loop()
     {
         // Обновление UI только если веб-интерфейс в фокусе
         if (sett.focused())
-        {
             sett.updater().update(H(Time), sett.rtc.toString());
-            // Serial.println(sett.rtc.toString());
-        }
 
         // 1. Проверяем таймер текущей активной зоны
         if (watering_active && current_zone >= 0 && current_zone < 3)

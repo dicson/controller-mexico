@@ -182,8 +182,6 @@ String getSystemInfo()
     String info;
     info.reserve(1024);
 
-    info += String(F("\n--- [ Системная информация ] ---\n"));
-
     // Память
     info += String(F("ОЗУ Всего  : ")) + String(ESP.getHeapSize()) + String(F(" байт\n"));
     info += String(F("ОЗУ Свобод.: ")) + String(ESP.getFreeHeap()) + String(F(" байт\n"));
@@ -196,7 +194,7 @@ String getSystemInfo()
     // Чип
     esp_chip_info_t chip_info;
     esp_chip_info(&chip_info);
-    info += String(F("Чип        : ")) + String(ESP.getChipModel()) + String(F(" (версия v")) + String(chip_info.revision) + String(F(")\n"));
+    info += String(F("Чип        : ")) + String(ESP.getChipModel()) + String(F(" (v")) + String(chip_info.revision) + String(F(")\n"));
     info += String(F("Ядер       : ")) + String(chip_info.cores) + String(F("\n"));
 
     // Сеть / Флеш
@@ -214,9 +212,6 @@ String getSystemInfo()
     info += String(F("Частота CPU: ")) + String(getCpuFrequencyMhz()) + String(F(" МГц\n"));
     info += String(F("Частота APB: ")) + String(getApbFrequency() / 1000000) + String(F(" МГц\n"));
     info += String(F("Сброс      : ")) + String(getResetReasonText(esp_reset_reason())) + String(F("\n"));
-    info += String(F("Работа     : ")) + String(millis() / 1000) + String(F(" сек\n"));
-
-    info += String(F("================================"));
     return info;
 }
 
